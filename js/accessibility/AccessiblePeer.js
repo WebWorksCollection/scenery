@@ -144,14 +144,14 @@ define( function( require ) {
       // interacted with.
       this.disposed = false;
 
-      // edge case for root accessibility
+      // edge case for root accessibility, which is passed in through options for some reason
       if ( options.primarySibling ) {
 
         // @private {HTMLElement} - The main element associated with this peer. If focusable, this is the element that gets
         // the focus. It also will contain any children.
         this._primarySibling = options.primarySibling;
 
-        // if testing mobile a11y, give the primary sibling style attributes to support transforming the HTML'
+        // if testing mobile a11y, give the root primary sibling style attributes to support transforming the HTML'
         if ( window.phet && phet.chipper.queryParameters.mobileA11yTest ) {
 
           // root is relatively styled so that descendants can be positioned absolutely
