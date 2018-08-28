@@ -129,7 +129,9 @@ define( function( require ) {
         // prevent pointer events on PDOM elements, they should be captured by the sim
         // But this prevents scanning with elements with finger when using a mobile device.
         // TODO: We need to figure out a different way to do this.
-        // accessibilityContainer.style.pointerEvents = 'none';
+        if ( window.phet && !window.phet.chipper.queryParameters.mobileA11yTest ) {
+          accessibilityContainer.style.pointerEvents = 'none';
+        }
 
         var self = this;
         this.globalKeyListener = function( event ) {

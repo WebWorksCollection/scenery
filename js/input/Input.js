@@ -1123,8 +1123,9 @@ define( function( require ) {
 
           // TODO: This makes the focus go away when interacting with an HTML element with a pointer, which 
           // is undesirable for mobile a11y. We need a better way to manage this.
-          // scenery.Display.focus = null;
-
+          if ( !( window.phet && phet.chipper.queryParameters.mobileA11yTest ) ) {
+            scenery.Display.focus = null;
+          }
         }
       }
 

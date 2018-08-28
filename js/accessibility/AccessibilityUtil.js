@@ -13,6 +13,7 @@ define( function( require ) {
   // modules
   var Random = require( 'DOT/Random' );
   var scenery = require( 'SCENERY/scenery' );
+  var Matrix3 = require( 'DOT/Matrix3' );
 
   // constants
   var NEXT = 'NEXT';
@@ -59,9 +60,12 @@ define( function( require ) {
   // valid types of DOM events that can be added to a node
   var DOM_EVENTS = [ 'input', 'change', 'click', 'keydown', 'keyup', 'focus', 'blur' ];
 
+  // a matrix in its CSS form that "hides" an HTMLElement by shifting it off screen and making it very small
+  var HIDING_MATRIX_CSS = Matrix3.translation( -1000, 0 ).timesMatrix( Matrix3.scaling( 0.1, 0.1 ) ).getCSSTransform();
+
   // these elements require a minimum width to be visible in Safari, see https://github.com/phetsims/john-travoltage/issues/204
   // NOTE: if transforming PDOM over display, this is not needed
-  // var ELEMENTS_REQUIRE_WIDTH = [ INPUT_TAG, A_TAG ];
+  var ELEMENTS_REQUIRE_WIDTH = [ INPUT_TAG, A_TAG ];
 
   var ARIA_LABELLEDBY = 'aria-labelledby';
   var ARIA_DESCRIBEDBY = 'aria-describedby';
@@ -458,40 +462,57 @@ define( function( require ) {
 
       domElement.tabIndex = focusable ? 0 : -1;
 
-      // // Safari requires that certain input elements have dimension, otherwise it will not be keyboard accessible
-      // var upperCaseTagName = tagName.toUpperCase();
-      // NOTE: We don't want this  for mobile a11y, but we will still need something like this if mobile a11y/PDOM
-      // transforms are not enabled
-      // if ( _.includes( ELEMENTS_REQUIRE_WIDTH, upperCaseTagName ) ) {
-      //   domElement.style.width = '1px';
-      //   domElement.style.height = '1px';
-      // }
+      // if transforming the PDOM elements for mobile a11y support, add style attributes to support the transform
+      // attribute
+      if ( window.phet && window.phet.chipper.queryParameters.mobileA11yTest ) {
 
-      // positioned absolutely, the bounds are defined relative to the top left at 0, 0 so our transformations are
-      // correct from DOM to local bounds
-      domElement.style.position = 'absolute';
-      domElement.style.top = '0';
-      domElement.style.left = '0';
-      domElement.style.padding = '0';
-      domElement.style.transformOrigin = 'left top'; 
+        // positioned absolutely, the bounds are defined relative to the top left at 0, 0 so our transformations are
+        // correct from DOM to local bounds
+        domElement.style.position = 'absolute';
+        domElement.style.top = '0';
+        domElement.style.left = '0';
+        domElement.style.padding = '0';
+        domElement.style.transformOrigin = 'left top'; 
 
-      // so that client width/height are exact
-      domElement.style.borderWidth = '0';
+        // so that client width/height are exact
+        domElement.style.borderWidth = '0';
 
-      // so that text content can be positioned exactly without any margins
-      domElement.style.margin = '0';
+        // so that text content can be positioned exactly without any margins
+        domElement.style.margin = '0';
 
-      // doesn't really impact behavior but looks a little nicer?
-      domElement.style.whiteSpace = 'nowrap';
+        // doesn't really impact behavior but looks a little nicer?
+        domElement.style.whiteSpace = 'nowrap';
 
-      // so that elements can never be seen visually, can comment this out to "see" transformed elements in the PDOM
-      // text and backgrounds of elements are made transparent where possible, and opacity takes care of the rest
-      // for things like radio buttons, check boxes, and others where color doesn't change element visuals
-      // domElement.style.color = 'Transparent';
-      // domElement.style.backgroundColor = 'Transparent';
-      // domElement.style.opacity = '0.0001';
+        // so that elements can never be seen visually, can comment this out to "see" transformed elements in the PDOM
+        // text and backgrounds of elements are made transparent where possible, and opacity takes care of the rest
+        // for things like radio buttons, check boxes, and others where color doesn't change element visuals
+        // domElement.style.color = 'Transparent';
+        // domElement.style.backgroundColor = 'Transparent';
+        // domElement.style.opacity = '0.0001';
+      }
+      else {
+
+        // Safari requires that certain input elements have dimension, otherwise it will not be keyboard accessible
+        var upperCaseTagName = tagName.toUpperCase();
+        if ( _.includes( ELEMENTS_REQUIRE_WIDTH, upperCaseTagName ) ) {
+          domElement.style.width = '1px';
+          domElement.style.height = '1px';
+        }
+      }
+
 
       return domElement;
+    },
+
+    /**
+     * Make an HTML element "invisible" by shifting it way off screen and making it really small. By giving it non-zero
+     * bounds, it is still readable by assistive devices, particularly those that use CSS to determine if it should
+     * have content in the Accessibility tree.
+     *
+     * @param {HTMLElement}
+     */
+    hideElement: function( element ) {
+      element.style.transform = HIDING_MATRIX_CSS;
     },
 
     TAGS: {

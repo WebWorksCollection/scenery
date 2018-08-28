@@ -151,11 +151,16 @@ define( function( require ) {
         // the focus. It also will contain any children.
         this._primarySibling = options.primarySibling;
 
-        // root is relatively styled so that descendants can be positioned absolutely
-        this._primarySibling.style.position = 'relative';
+        // if testing mobile a11y, give the primary sibling style attributes to support transforming the HTML'
+        if ( window.phet && phet.chipper.queryParameters.mobileA11yTest ) {
 
-        // TODO: another way to make sure that DOM is on top of display? Is this critical?
-        this._primarySibling.style.zIndex = '10000';
+          // root is relatively styled so that descendants can be positioned absolutely
+          this._primarySibling.style.position = 'relative';
+
+          // TODO: another way to make sure that DOM is on top of display? Is this critical?
+          this._primarySibling.style.zIndex = '10000';
+        }
+
         return this;
       }
 
@@ -168,8 +173,17 @@ define( function( require ) {
       // @private {TransformTracker} - update CSS bounds when transform of this node changes
       this.transformTracker = new TransformTracker( this.trail );
 
-      // @private - must be removed on disposal
+      // attach a MutationObserver that will update the transformation of the element when content or children change
+      // only create new one if not from pool
       var self = this;
+      this._primaryObserver = this._primaryObserver || new MutationObserver( function( mutations ) {
+
+        // there is no need to iterate over the entire list of mutations because a single mutation is all that is
+        // required to mark dirty for the next Display.updateDisplay
+        self.invalidateCSSTransforms();
+      } );
+
+      // @private - must be removed on disposal
       this.transformListener = this.transformListener || function() {
         self.invalidateCSSTransforms();
       };
@@ -211,15 +225,6 @@ define( function( require ) {
       } );
       primarySibling.id = uniqueId;
 
-      // attach a MutationObserver that will update the transformation of the element when content or children change
-      var self = this;
-      var primaryObserver = new MutationObserver( function( mutations ) {
-
-        // there is no need to iterate over the entire list of mutations because a single mutation is all that is
-        // required to mark dirty for the next Display.updateDisplay
-        self.invalidateCSSTransforms();
-      } );
-
       // create the container parent for the dom siblings
       var containerParent = null;
       if ( options.containerTagName ) {
@@ -239,7 +244,7 @@ define( function( require ) {
         labelSibling.id = 'label-' + uniqueId;
 
         // labels are just pushed off screen, only inputs are required to be transformed
-        labelSibling.style.transform = Matrix3.translation( -1000, 0 ).timesMatrix( Matrix3.scaling( 0.1, 0.1 ) ).getCSSTransform();
+        AccessibilityUtil.hideElement( labelSibling );
       }
 
       // create the description DOM element representing this instance
@@ -250,7 +255,7 @@ define( function( require ) {
 
         // descriptions are just pushed off screen, only inputs are required to be transformed
         // TODO: factor this out
-        descriptionSibling.style.transform = Matrix3.translation( -1000, 0 ).timesMatrix( Matrix3.scaling( 0.1, 0.1 ) ).getCSSTransform();
+        AccessibilityUtil.hideElement( descriptionSibling );
       }
 
       // assign elements
@@ -259,10 +264,9 @@ define( function( require ) {
       this._descriptionSibling = descriptionSibling;
       this._containerParent = containerParent;
 
-      // assign listeners (to be removed during disposal)
-      this._primaryObserver = primaryObserver;
-
       this.orderElements( options );
+
+      // assign listeners (to be removed or detached during disposal)
 
       // @private {function} - Referenced for disposal
       this.focusEventListener = this.focusEventListener || this.onFocus.bind( this );
@@ -833,6 +837,7 @@ define( function( require ) {
      */
     updateCSSTransforms: function() {
       assert && assert( this.primarySibling, 'a primary sibling should be defined to receive a transform' );
+      assert && assert( window.phet && phet.chipper.queryParameters.mobileA11yTest, 'should only be run when testing' );
 
       var localBounds = this.node.localBounds;
       var clientWidth = this.primarySibling.clientWidth;
@@ -873,9 +878,9 @@ define( function( require ) {
       else {
 
         // If the node has no bounds, this sibling is purely fro DOM content or scene graph structure and 
-        // doesn't have visual representation. Just hide this by shrinking the content nearly nothing
+        // doesn't have visual representation. Just hide this element.
         if ( clientHeight !== 0 && clientWidth !== 0 )  {
-          this.primarySibling.style.transform = Matrix3.translation( -1000, 0 ).timesMatrix( Matrix3.scaling( 0.1, 0.1 ) ).getCSSTransform();
+          AccessibilityUtil.hideElement( this.primarySibling );
         }
 
         // if the node has no bounds, this sibling is purely for DOM content or scene graph structure and doesn't
@@ -915,7 +920,6 @@ define( function( require ) {
       this._labelSibling = null;
       this._descriptionSibling = null;
       this._containerParent = null;
-      this._primaryObserver = null; // TODO: Actually, can this be set up once and not recreated?
 
       // for now
       this.freeToPool();

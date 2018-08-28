@@ -70,6 +70,7 @@ define( function( require ) {
   var Features = require( 'SCENERY/util/Features' );
   var Node = require( 'SCENERY/nodes/Node' );
   var scenery = require( 'SCENERY/scenery' );
+  var SceneryStyle = require( 'SCENERY/util/SceneryStyle' );
   require( 'SCENERY/display/BackboneDrawable' );
   require( 'SCENERY/display/CanvasBlock' );
   require( 'SCENERY/display/CanvasSelfDrawable' );
@@ -271,11 +272,16 @@ define( function( require ) {
         this._domElement.setAttribute( 'aria-role', 'application' );
       }
 
+      // whether or not we are testing mobile a11y support by transforming elements in the PDOM
+      this._mobileA11yTest = ( window.phet && phet.chipper.queryParameters.mobileA11yTest );
+
       // make the PDOM invisible in the browser - it has some width and is shifted off screen so that AT can read the
       // formatting tags, see https://github.com/phetsims/scenery/issues/730
-      // We do not want to hide the PDOM in this way for mobile a11y. Commented out for that work, but we will 
-      // probably need something like this when PDOM transformations are not enabled
-      // SceneryStyle.addRule( '.accessibility * { position: relative; left: -1000px; top: 0; width: 250px; height: 0; clip: rect(0,0,0,0); pointerEvents: none }' );
+      // We do not want to hide the PDOM in this way for mobile a11y, once that is integrated full, this can be removed
+      // see 
+      if ( !this._mobileA11yTest ) {
+        SceneryStyle.addRule( '.accessibility * { position: relative; left: -1000px; top: 0; width: 250px; height: 0; clip: rect(0,0,0,0); pointerEvents: none }' );
+      }
 
       this._focusRootNode = new Node();
       this._focusOverlay = new FocusOverlay( this, this._focusRootNode );
@@ -460,9 +466,10 @@ define( function( require ) {
         }
       }
 
-      if ( this._accessible ) {
+      if ( this._accessible && this._mobileA11yTest ) {
 
-        // make sure that accessible DOM elements are correctly positioned with CSS transforms
+        // Update any out of date CSS transforms for AccessiblePeer content - for now only doing this while exploring
+        // a solution for a11y on mobile devices
         AccessibilityTree.updateDirtyCSSTransforms( this._rootAccessibleInstance ); 
       }
 

@@ -426,6 +426,9 @@ define( function( require ) {
      * @private (scenery-internal)
      */
     updateCSSTransformsForSubTree: function( rootInstance ) {
+      
+      // for now, this should only ever be called experimentally, see https://github.com/phetsims/scenery/issues/852
+      assert && assert( window.phet && window.phet.chipper.queryParameters.mobileA11yTest, 'this should be hidden behind mobileA11yTest query parameter' );
 
       // no longer dirty for next time
       rootInstance.peer.transformDirty = false;
