@@ -15,8 +15,10 @@ define( function( require ) {
   var Events = require( 'AXON/Events' );
   var Focus = require( 'SCENERY/accessibility/Focus' );
   var inherit = require( 'PHET_CORE/inherit' );
+  var Matrix3 = require( 'DOT/Matrix3' );
   var Poolable = require( 'PHET_CORE/Poolable' );
   var scenery = require( 'SCENERY/scenery' );
+  var TransformTracker = require( 'SCENERY/util/TransformTracker' );
   // so RequireJS doesn't complain about circular dependency
   // var Display = require( 'SCENERY/display/Display' );
 
@@ -29,6 +31,9 @@ define( function( require ) {
   var CONTAINER_PARENT = 'CONTAINER_PARENT';
   var LABEL_TAG = AccessibilityUtil.TAGS.LABEL;
   var INPUT_TAG = AccessibilityUtil.TAGS.INPUT;
+
+  // DOM observers that apply new css transformations are triggered when children or inner content change
+  var OBSERVER_CONFIG = { attributes: false, childList: true, characterData: true };
 
   /**
    * Constructor.
@@ -95,6 +100,46 @@ define( function( require ) {
       // See this.orderElements for more info.
       this.topLevelElements = [];
 
+      // @private {MutationObserver|null} - an observer that will change the transformation for the primary
+      // sibling if its inner content or child list changes
+      this._primaryObserver = null;
+
+      // @private - flag that indicates that this peer has accessible content that changed and so the element
+      // transforms need to be updated in the next animation frame
+      this.transformDirty = false;
+
+      // @private - flag that this peer has an AccessibleInstance with some descendant with a dirty transform that
+      // needs to be updated in the next animation frame
+      this.descendantTransformDirty = false;
+
+      // @private - the matrix that transforms the HTML sibling elements to the local coordinate frame of this peer's
+      // node, identity until the sibling has client bounds
+      this.domToLocalMatrix = Matrix3.IDENTITY;
+
+      // @private - the difference between the nodes along this trail and the nodes of the parent accessible instance's
+      // trail, including this node - populated in update
+      this.nodesToParentInstance = [];
+
+      // @private - the trail to the visual instance since due to 
+      this.visualTrail = this.accessibleInstance.guessVisualTrail();
+
+      // walk up the visual trail, trying to find the ancestor accessible instance along the visual trail (not
+      // necessarily the accessible instance parent)
+      this.nodesToParentInstance.push( this.node );
+      for ( var i = this.visualTrail.length - 2; i >= 0; i-- ) {
+        var visualParent = this.visualTrail.get( i );
+
+        // ancestor needs to come first in the array, so we add these to front
+        if ( !visualParent.tagName ) {
+          this.nodesToParentInstance.unshift( visualParent );
+        }
+        else {
+
+          // we found the parent instance along the visual trail so we can break without adding it to the array
+          break;
+        }
+      }
+
       // @private {boolean} - Whether we are currently in a "disposed" (in the pool) state, or are available to be
       // interacted with.
       this.disposed = false;
@@ -105,6 +150,12 @@ define( function( require ) {
         // @private {HTMLElement} - The main element associated with this peer. If focusable, this is the element that gets
         // the focus. It also will contain any children.
         this._primarySibling = options.primarySibling;
+
+        // root is relatively styled so that descendants can be positioned absolutely
+        this._primarySibling.style.position = 'relative';
+
+        // TODO: another way to make sure that DOM is on top of display? Is this critical?
+        this._primarySibling.style.zIndex = '10000';
         return this;
       }
 
@@ -113,6 +164,16 @@ define( function( require ) {
       while ( this._containerParent && this._containerParent.hasChildNodes() ) {
         this._containerParent.removeChild( this._containerParent.lastChild );
       }
+
+      // @private {TransformTracker} - update CSS bounds when transform of this node changes
+      this.transformTracker = new TransformTracker( this.trail );
+
+      // @private - must be removed on disposal
+      var self = this;
+      this.transformListener = this.transformListener || function() {
+        self.invalidateCSSTransforms();
+      };
+      this.transformTracker.addListener( this.transformListener );
 
       // clear out elements to be recreated below
       this._primarySibling = null;
@@ -150,6 +211,15 @@ define( function( require ) {
       } );
       primarySibling.id = uniqueId;
 
+      // attach a MutationObserver that will update the transformation of the element when content or children change
+      var self = this;
+      var primaryObserver = new MutationObserver( function( mutations ) {
+
+        // there is no need to iterate over the entire list of mutations because a single mutation is all that is
+        // required to mark dirty for the next Display.updateDisplay
+        self.invalidateCSSTransforms();
+      } );
+
       // create the container parent for the dom siblings
       var containerParent = null;
       if ( options.containerTagName ) {
@@ -167,6 +237,9 @@ define( function( require ) {
       if ( options.labelTagName ) {
         labelSibling = AccessibilityUtil.createElement( options.labelTagName, false );
         labelSibling.id = 'label-' + uniqueId;
+
+        // labels are just pushed off screen, only inputs are required to be transformed
+        labelSibling.style.transform = Matrix3.translation( -1000, 0 ).timesMatrix( Matrix3.scaling( 0.1, 0.1 ) ).getCSSTransform();
       }
 
       // create the description DOM element representing this instance
@@ -174,13 +247,20 @@ define( function( require ) {
       if ( options.descriptionTagName ) {
         descriptionSibling = AccessibilityUtil.createElement( options.descriptionTagName, false );
         descriptionSibling.id = 'description-' + uniqueId;
+
+        // descriptions are just pushed off screen, only inputs are required to be transformed
+        // TODO: factor this out
+        descriptionSibling.style.transform = Matrix3.translation( -1000, 0 ).timesMatrix( Matrix3.scaling( 0.1, 0.1 ) ).getCSSTransform();
       }
 
-
+      // assign elements
       this._primarySibling = primarySibling;
       this._labelSibling = labelSibling;
       this._descriptionSibling = descriptionSibling;
       this._containerParent = containerParent;
+
+      // assign listeners (to be removed during disposal)
+      this._primaryObserver = primaryObserver;
 
       this.orderElements( options );
 
@@ -192,6 +272,7 @@ define( function( require ) {
       this._primarySibling.addEventListener( 'blur', this.blurEventListener );
       this._primarySibling.addEventListener( 'focus', this.focusEventListener );
 
+      this._primaryObserver.observe( this._primarySibling, OBSERVER_CONFIG );
 
       // set the accessible label now that the element has been recreated again, but not if the tagName
       // has been cleared out
@@ -217,7 +298,6 @@ define( function( require ) {
       // recompute and assign the association attributes that link two elements (like aria-labelledby)
       this.onAriaLabelledbyAssociationChange();
       this.onAriaDescribedbyAssociationChange();
-
 
       // add all listeners to the dom element
       for ( i = 0; i < this.node.accessibleInputListeners.length; i++ ) {
@@ -727,6 +807,85 @@ define( function( require ) {
     },
 
     /**
+     * Mark that this AccessiblePeer has a transform that needs to be updated in the next animation frame. Does nothing
+     * if the transform has already been marked as dirty.
+     * 
+     * @private
+     */
+    invalidateCSSTransforms: function() {
+      if ( !this.transformDirty ) {
+
+        // mar that this instance needs to be updated
+        this.transformDirty = true;
+
+        // mark all ancestors to indicate that this instance will require an update to CSS transforms, so that we
+        // can find this AccessiblePeer in Display.updateDisplay
+        var parent = this.accessibleInstance.parent;
+        while ( parent ) {
+          parent.peer.descendantTransformDirty = true;
+          parent = parent.parent;
+        }
+      }
+    },
+
+    /**
+     * Update the CSS transform of the primary element.
+     */
+    updateCSSTransforms: function() {
+      assert && assert( this.primarySibling, 'a primary sibling should be defined to receive a transform' );
+
+      var localBounds = this.node.localBounds;
+      var clientWidth = this.primarySibling.clientWidth;
+      var clientHeight = this.primarySibling.clientHeight;
+
+      // only define the DOM to local matrix if client bounds are defined
+      if ( clientWidth > 0 && clientHeight > 0 ) {
+
+        // inefficient version, can potentially combine later to not create extra matrices that aren't used
+        // the translation matrix for the node's bounds in its local coordinate frame
+        var localNodeTranslation = Matrix3.translation( localBounds.minX, localBounds.minY );
+
+        // scale matrix for "client" HTML element, scale to make the HTML element's DOM bounds match the
+        // local bounds of the node
+        var localToClientScale = Matrix3.scale( localBounds.width / clientWidth, localBounds.height / clientHeight );
+        var scaleMagnitude = Matrix3.scale( this.node.getScaleVector().x, this.node.getScaleVector().y );
+
+        // combine these two in a single transformation matrix
+        this.domToLocalMatrix = localNodeTranslation.timesMatrix( localToClientScale ).timesMatrix( scaleMagnitude );
+      }
+
+      if ( localBounds.isFinite() ) {
+
+        // transform the "dom to local matrix" to the global coordinate frame, starting with parent's inverted
+        // domToLocalMatrix, then walking down the scene graph to transform to ancestor coordinates
+        var parentPeer = this.accessibleInstance.parent.peer;
+        var matrix = parentPeer.domToLocalMatrix.inverted();
+        var relativeNodes = this.nodesToParentInstance;
+
+        for ( var i = 0; i < relativeNodes.length; i++ ) {
+          matrix = matrix.timesMatrix( relativeNodes[ i ].getMatrix() );
+        }
+
+        // use it to transform this node's dom to local matrix
+        matrix = matrix.timesMatrix( this.domToLocalMatrix );
+        this.primarySibling.style.transform = matrix.getCSSTransform();
+      }
+      else {
+
+        // If the node has no bounds, this sibling is purely fro DOM content or scene graph structure and 
+        // doesn't have visual representation. Just hide this by shrinking the content nearly nothing
+        if ( clientHeight !== 0 && clientWidth !== 0 )  {
+          this.primarySibling.style.transform = Matrix3.translation( -1000, 0 ).timesMatrix( Matrix3.scaling( 0.1, 0.1 ) ).getCSSTransform();
+        }
+
+        // if the node has no bounds, this sibling is purely for DOM content or scene graph structure and doesn't
+        // have visual representation - just hide this by shrinking the content to nothing
+        // TODO: But this shrinks primary elements that are containers. Maybe just do this for elements with
+        // inner content?
+      }
+    },
+
+    /**
      * Removes external references from this peer, and places it in the pool.
      * @public (scenery-internal)
      */
@@ -744,6 +903,8 @@ define( function( require ) {
       // remove listeners
       this._primarySibling.removeEventListener( 'blur', this.blurEventListener );
       this._primarySibling.removeEventListener( 'focus', this.focusEventListener );
+      this.transformTracker.removeListener( this.transformListener );
+      this._primaryObserver.disconnect();
 
       // zero-out references
       this.accessibleInstance = null;
@@ -754,6 +915,7 @@ define( function( require ) {
       this._labelSibling = null;
       this._descriptionSibling = null;
       this._containerParent = null;
+      this._primaryObserver = null; // TODO: Actually, can this be set up once and not recreated?
 
       // for now
       this.freeToPool();

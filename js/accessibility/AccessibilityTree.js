@@ -393,6 +393,55 @@ define( function( require ) {
     },
 
     /**
+     * Update CSS transforms for elements in the PDOM. Does a depth first search for all descendants of rootInstance
+     * with a peer that has descendantTransformDirty until it finds the descendant marked with transformDirty. Once
+     * it finds this peer, it will update the CSS transforms for AccessiblePeer elements on that AccessibleInstance
+     * and all of its descendants (in that order because parents need to be updated before children due to the
+     * computation of the matrix that transforms DOM to the local node coordinate frame).
+     *
+     * @param {} rootInstance - root AccessibleInstance, we will search down this subtree
+     */
+    updateDirtyCSSTransforms: function( rootInstance ) {
+
+      // no need to continue searching down this sub tree after this traversal
+      rootInstance.peer.descendantTransformDirty = false;
+
+      if ( rootInstance.peer.transformDirty ) {
+        AccessibilityTree.updateCSSTransformsForSubTree( rootInstance );
+      }
+      else {
+        for ( var i = 0; i < rootInstance.children.length; i++ ) {
+          var childPeer = rootInstance.children[ i ].peer;
+          if ( childPeer.transformDirty || childPeer.descendantTransformDirty ) {
+            AccessibilityTree.updateDirtyCSSTransforms( rootInstance.children[ i ] );
+          }
+        }
+      }
+    },
+
+    /**
+     * Update the CSS transforms for the AccessiblePeer's primarySibling of all descendant AccessibleInstances.
+     * 
+     * @param {AccessibleInstance} rootInstance - root of the subtree whose transforms we are going to update
+     * @private (scenery-internal)
+     */
+    updateCSSTransformsForSubTree: function( rootInstance ) {
+
+      // no longer dirty for next time
+      rootInstance.peer.transformDirty = false;
+
+      // we are going to update every transform down this subtree, no need to search down this subtree at all
+      rootInstance.peer.descendantTransformDirty = false;
+
+      rootInstance.peer.updateCSSTransforms();
+
+      // now apply to all instance in the subtree (depth-first)
+      for ( var i = 0; i < rootInstance.children.length; i++ ) {
+        AccessibilityTree.updateCSSTransformsForSubTree( rootInstance.children[ i ] );
+      }
+    },
+
+    /**
      * Prepares for an a11y-tree-changing operation (saving some state).
      * @private
      */

@@ -91,7 +91,6 @@ define( function( require ) {
   var platform = require( 'PHET_CORE/platform' );
   var PointerAreaOverlay = require( 'SCENERY/overlays/PointerAreaOverlay' );
   var PointerOverlay = require( 'SCENERY/overlays/PointerOverlay' );
-  var SceneryStyle = require( 'SCENERY/util/SceneryStyle' );
   var Util = require( 'SCENERY/util/Util' );
 
   // ifphetio
@@ -274,7 +273,9 @@ define( function( require ) {
 
       // make the PDOM invisible in the browser - it has some width and is shifted off screen so that AT can read the
       // formatting tags, see https://github.com/phetsims/scenery/issues/730
-      SceneryStyle.addRule( '.accessibility * { position: relative; left: -1000px; top: 0; width: 250px; height: 0; clip: rect(0,0,0,0); pointerEvents: none }' );
+      // We do not want to hide the PDOM in this way for mobile a11y. Commented out for that work, but we will 
+      // probably need something like this when PDOM transformations are not enabled
+      // SceneryStyle.addRule( '.accessibility * { position: relative; left: -1000px; top: 0; width: 250px; height: 0; clip: rect(0,0,0,0); pointerEvents: none }' );
 
       this._focusRootNode = new Node();
       this._focusOverlay = new FocusOverlay( this, this._focusRootNode );
@@ -457,6 +458,12 @@ define( function( require ) {
 
           overlay.update();
         }
+      }
+
+      if ( this._accessible ) {
+
+        // make sure that accessible DOM elements are correctly positioned with CSS transforms
+        AccessibilityTree.updateDirtyCSSTransforms( this._rootAccessibleInstance ); 
       }
 
       this._frameId++;

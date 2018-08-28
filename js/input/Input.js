@@ -1120,7 +1120,10 @@ define( function( require ) {
 
           // Remove keyboard focus, but store element that is receiving interaction in case we resume .
           this.display.pointerFocus = focusableNode;
-          scenery.Display.focus = null;
+
+          // TODO: This makes the focus go away when interacting with an HTML element with a pointer, which 
+          // is undesirable for mobile a11y. We need a better way to manage this.
+          // scenery.Display.focus = null;
 
         }
       }
