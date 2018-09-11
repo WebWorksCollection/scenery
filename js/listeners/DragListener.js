@@ -41,7 +41,11 @@ define( function( require ) {
 
   // modules
   var Bounds2 = require( 'DOT/Bounds2' );
+  var Emitter = require( 'AXON/Emitter' );
+  var EmitterIO = require( 'AXON/EmitterIO' );
+  var EventIO = require( 'SCENERY/input/EventIO' );
   var inherit = require( 'PHET_CORE/inherit' );
+  var PhetioObject = require( 'TANDEM/PhetioObject' );
   var PressListener = require( 'SCENERY/listeners/PressListener' );
   var Property = require( 'AXON/Property' );
   var scenery = require( 'SCENERY/scenery' );
@@ -50,9 +54,6 @@ define( function( require ) {
   var Transform3 = require( 'DOT/Transform3' );
   var TransformTracker = require( 'SCENERY/util/TransformTracker' );
   var Vector2 = require( 'DOT/Vector2' );
-
-  // ifphetio
-  var DragListenerIO = require( 'SCENERY/listeners/DragListenerIO' );
 
   // Scratch vectors used to prevent allocations
   var scratchVector2A = new Vector2();
@@ -64,6 +65,8 @@ define( function( require ) {
    * @param {Object} [options] - See the constructor body (below) and in PressListener for documented options.
    */
   function DragListener( options ) {
+    var self = this;
+
     options = _.extend( {
       // {boolean} - If true, unattached touches that move across our node will trigger a press(). This helps sometimes
       // for small draggable objects.
@@ -116,9 +119,7 @@ define( function( require ) {
       // {Tandem} - For instrumenting
       tandem: Tandem.required,
 
-      // {DragListenerIO} - PhET-iO type
-      phetioType: DragListenerIO,
-      phetioEventType: 'user'
+      phetioReadOnly: PhetioObject.DEFAULT_OPTIONS.phetioReadOnly // to support properly passing this to children, see https://github.com/phetsims/tandem/issues/60
     }, options );
 
     // Initialize with the alias isUserControlledProperty => isPressedProperty
@@ -188,6 +189,25 @@ define( function( require ) {
     // interruptions here so that we can prevent future enter/down events from the same touch pointer from triggering
     // another startDrag.
     this._lastInterruptedTouchPointer = null;
+
+    // @private {Emitter} - emitted on drag. Used for triggering phet-io events, see https://github.com/phetsims/scenery/issues/842
+    this._draggedEmitter = new Emitter( {
+      tandem: options.tandem.createTandem( 'draggedEmitter' ),
+      phetioInstanceDocumentation: 'Emits whenever a drag occurs with an EventIO argument.',
+      phetioReadOnly: options.phetioReadOnly,
+      phetioEventType: 'user',
+      phetioType: EmitterIO( [ EventIO ] )
+    } );
+
+    this._draggedEmitter.addListener( function( event ) {
+
+      // This is done first, before the drag listener is called (from the prototype drag call)
+      if ( !self._globalPoint.equals( self.pointer.point ) ) {
+        self.reposition( self.pointer.point );
+      }
+
+      PressListener.prototype.drag.call( self, event );
+    } );
   }
 
   scenery.register( 'DragListener', DragListener );
@@ -207,27 +227,26 @@ define( function( require ) {
      * @returns {boolean} success - Returns whether the press was actually started
      */
     press: function( event, targetNode ) {
+      var self = this;
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'DragListener press' );
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
-      var success = PressListener.prototype.press.call( this, event, targetNode );
-
-      if ( success ) {
+      var success = PressListener.prototype.press.call( this, event, targetNode, function() {
         sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'DragListener successful press' );
         sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
-        this.attachTransformTracker();
+        self.attachTransformTracker();
 
         // Set the local point
-        this.parentToLocalPoint( this.globalToParentPoint( this._localPoint.set( this.pointer.point ) ) );
+        self.parentToLocalPoint( self.globalToParentPoint( self._localPoint.set( self.pointer.point ) ) );
 
-        this.reposition( this.pointer.point );
+        self.reposition( self.pointer.point );
 
         // Notify after positioning and other changes
-        this._start && this._start( event, this );
+        self._start && self._start( event, self );
 
         sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
-      }
+      } );
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
 
@@ -243,15 +262,17 @@ define( function( require ) {
      * events. If the cancel/interrupt behavior is more preferable, call interrupt() on this listener instead.
      */
     release: function() {
+      var self = this;
+
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'DragListener release' );
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
-      PressListener.prototype.release.call( this );
+      PressListener.prototype.release.call( this, function() {
+        self.detachTransformTracker();
 
-      this.detachTransformTracker();
-
-      // Notify after the rest of release is called in order to prevent it from triggering interrupt().
-      this._end && this._end( this );
+        // Notify after the rest of release is called in order to prevent it from triggering interrupt().
+        self._end && self._end( self );
+      } );
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
     },
@@ -273,19 +294,7 @@ define( function( require ) {
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'DragListener drag' );
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
-      this.phetioStartEvent( 'drag', {
-        x: event.pointer.point.x,
-        y: event.pointer.point.y
-      } );
-
-      // This is done first, before the drag listener is called (from the prototype drag call)
-      if ( !this._globalPoint.equals( this.pointer.point ) ) {
-        this.reposition( this.pointer.point );
-      }
-
-      PressListener.prototype.drag.call( this, event );
-
-      this.phetioEndEvent();
+      this._draggedEmitter.emit1( event );
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
     },
@@ -649,6 +658,8 @@ define( function( require ) {
     dispose: function() {
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'DragListener dispose' );
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
+
+      this._draggedEmitter.dispose();
 
       this.detachTransformTracker();
 

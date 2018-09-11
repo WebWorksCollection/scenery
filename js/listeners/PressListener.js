@@ -16,18 +16,21 @@ define( function( require ) {
   'use strict';
 
   var BooleanProperty = require( 'AXON/BooleanProperty' );
+  var Emitter = require( 'AXON/Emitter' );
+  var EmitterIO = require( 'AXON/EmitterIO' );
   var inherit = require( 'PHET_CORE/inherit' );
   var Mouse = require( 'SCENERY/input/Mouse' );
+  var EventIO = require( 'SCENERY/input/EventIO' );
   var Node = require( 'SCENERY/nodes/Node' );
   var ObservableArray = require( 'AXON/ObservableArray' );
   var PhetioObject = require( 'TANDEM/PhetioObject' );
   var Property = require( 'AXON/Property' );
   var scenery = require( 'SCENERY/scenery' );
   var Tandem = require( 'TANDEM/Tandem' );
-  var Timer = require( 'PHET_CORE/Timer' );
+  var timer = require( 'PHET_CORE/timer' );
 
   // ifphetio
-  var PressListenerIO = require( 'SCENERY/listeners/PressListenerIO' );
+  var VoidIO = require( 'ifphetio!PHET_IO/types/VoidIO' );
 
   // global
   var globalID = 0;
@@ -103,23 +106,18 @@ define( function( require ) {
       // started.
       canStartPress: _.constant( true ),
 
-      // a11y - interval between a11y click presses. Same default as ButtonModel.js
+      // a11y {number} - interval between a11y click presses. Same default as ButtonModel.js
       fireOnHoldInterval: 100,
+
+      // a11y {function} - called at the end of a press ("click") that was a result of a keyboard action. This will not
+      // be called for a mouse/pointer interaction.
+      onAccessibleClick: null,
 
       // {Tandem} - For instrumenting
       tandem: Tandem.required,
 
-      // {PressListenerIO} - PhET-iO type
-      phetioType: PressListenerIO,
-
-      // {boolean}
-      phetioState: false,
-
-      // {string}
-      phetioEventType: 'user'
+      phetioReadOnly: PhetioObject.DEFAULT_OPTIONS.phetioReadOnly // to support properly passing this to children, see https://github.com/phetsims/tandem/issues/60
     }, options );
-
-    PhetioObject.call( this, options );
 
     assert && assert( typeof options.mouseButton === 'number' && options.mouseButton >= 0 && options.mouseButton % 1 === 0,
       'mouseButton should be a non-negative integer' );
@@ -142,6 +140,10 @@ define( function( require ) {
       'If a custom isHoveringProperty is provided, it must be a Property that is false initially' );
     assert && assert( options.isHighlightedProperty instanceof Property && options.isHighlightedProperty.value === false,
       'If a custom isHighlightedProperty is provided, it must be a Property that is false initially' );
+    assert && assert( options.onAccessibleClick === null || typeof options.onAccessibleClick === 'function',
+      'If provided, onAccessibleClick should be a function' );
+    assert && assert( options.fireOnHoldInterval === null || typeof options.fireOnHoldInterval === 'number',
+      'If provided, fireOnHoldInterval should be a number' );
 
     // @private {number} - Unique global ID for this listener
     this._id = globalID++;
@@ -177,7 +179,11 @@ define( function( require ) {
     this._targetNode = options.targetNode;
     this._attach = options.attach;
     this._canStartPress = options.canStartPress;
-    this._fireOnHoldInterval = options.fireOnHoldInterval;
+    this._fireOnHoldInterval = options.fireOnHoldInterval; // used for a11y
+    this._onAccessibleClick = options.onAccessibleClick; // used for a11y
+
+    // @private {boolean} - marks that the accessibility click listener is currently firing.
+    this._a11yClickInProgress = false;
 
     // @private {boolean} - Whether our pointer listener is referenced by the pointer (need to have a flag due to
     //                      handling disposal properly).
@@ -266,6 +272,69 @@ define( function( require ) {
       blur: this.blur.bind( this )
     };
 
+    // @private - emitted on press event
+    this._pressedEmitter = new Emitter( {
+      tandem: options.tandem.createTandem( 'pressedEmitter' ),
+      phetioInstanceDocumentation: 'Emits whenever a press occurs. The first argument when emitting can be ' +
+                                   'used to convey info about the Event.',
+      phetioReadOnly: options.phetioReadOnly,
+      phetioEventType: 'user',
+      phetioType: EmitterIO( [ EventIO, VoidIO, VoidIO ] )
+    } );
+
+    this._pressedEmitter.addListener( function( event, targetNode, callback ) {
+
+      targetNode = targetNode || self._targetNode;
+
+      // Set self properties before the property change, so they are visible to listeners.
+      self.pointer = event.pointer;
+      self.pressedTrail = targetNode ? targetNode.getUniqueTrail() : event.trail.subtrailTo( event.currentTarget, false );
+
+      self.interrupted = false; // clears the flag (don't set to false before here)
+
+      self.pointer.addInputListener( self._pointerListener, self._attach );
+      self._listeningToPointer = true;
+
+      self.pointer.cursor = self._pressCursor;
+
+      self.isPressedProperty.value = true;
+
+      // Notify after everything else is set up
+      self._pressListener && self._pressListener( event, self );
+
+      callback && callback();
+    } );
+
+    // @private - emitted on release event
+    this._releasedEmitter = new Emitter( {
+      tandem: options.tandem.createTandem( 'releasedEmitter' ),
+      phetioInstanceDocumentation: 'Emits whenever a release occurs.',
+      phetioReadOnly: options.phetioReadOnly,
+      phetioEventType: 'user',
+      phetioType: EmitterIO( [ VoidIO ] )
+    } );
+
+    this._releasedEmitter.addListener( function( callback ) {
+
+      assert && assert( self.isPressed, 'This listener is not pressed' );
+
+      self.pointer.removeInputListener( self._pointerListener );
+      self._listeningToPointer = false;
+
+      self.pointer.cursor = null;
+
+      // Unset self properties after the property change, so they are visible to listeners beforehand.
+      self.pointer = null;
+      self.pressedTrail = null;
+
+      self.isPressedProperty.value = false;
+
+      // Notify after the rest of release is called in order to prevent it from triggering interrupt().
+      self._releaseListener && self._releaseListener( self );
+
+      callback && callback();
+    } );
+
     // update isOverProperty (not a DerivedProperty because we need to hook to passed-in properties)
     this.overPointers.lengthProperty.link( this.invalidateOver.bind( this ) );
 
@@ -289,7 +358,7 @@ define( function( require ) {
 
   scenery.register( 'PressListener', PressListener );
 
-  inherit( PhetioObject, PressListener, {
+  inherit( Object, PressListener, {
     /**
      * Whether this listener is currently activated with a press.
      * @public
@@ -427,9 +496,10 @@ define( function( require ) {
      * @param {Event} event
      * @param {Node} [targetNode] - If provided, will take the place of the targetNode for this call. Useful for
      *                              forwarded presses.
+     * @param {function} [callback]- to be run at the end of the function, but only on success
      * @returns {boolean} success - Returns whether the press was actually started
      */
-    press: function( event, targetNode ) {
+    press: function( event, targetNode, callback ) {
       assert && assert( event, 'An event is required' );
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'PressListener#' + this._id + ' press' );
@@ -441,30 +511,9 @@ define( function( require ) {
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'PressListener#' + this._id + ' successful press' );
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
-      this.phetioStartEvent( 'pressed', {
-        x: event.pointer.point.x,
-        y: event.pointer.point.y
-      } );
 
-      targetNode = targetNode || this._targetNode;
+      this._pressedEmitter.emit3( event, targetNode, callback );
 
-      // Set self properties before the property change, so they are visible to listeners.
-      this.pointer = event.pointer;
-      this.pressedTrail = targetNode ? targetNode.getUniqueTrail() : event.trail.subtrailTo( event.currentTarget, false );
-
-      this.interrupted = false; // clears the flag (don't set to false before here)
-
-      this.pointer.addInputListener( this._pointerListener, this._attach );
-      this._listeningToPointer = true;
-
-      this.pointer.cursor = this._pressCursor;
-
-      this.isPressedProperty.value = true;
-
-      // Notify after everything else is set up
-      this._pressListener && this._pressListener( event, this );
-
-      this.phetioEndEvent();
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
 
       return true;
@@ -478,29 +527,14 @@ define( function( require ) {
      *
      * This can be called from the outside to release the press without the pointer having actually fired any 'up'
      * events. If the cancel/interrupt behavior is more preferable, call interrupt() on this listener instead.
+     * @param {function} [callback] - called at the end of the release
      */
-    release: function() {
+    release: function( callback ) {
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'PressListener#' + this._id + ' release' );
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
-      this.phetioStartEvent( 'released' );
 
-      assert && assert( this.isPressed, 'This listener is not pressed' );
+      this._releasedEmitter.emit1( callback );
 
-      this.pointer.removeInputListener( this._pointerListener );
-      this._listeningToPointer = false;
-
-      this.pointer.cursor = null;
-
-      // Unset self properties after the property change, so they are visible to listeners beforehand.
-      this.pointer = null;
-      this.pressedTrail = null;
-
-      this.isPressedProperty.value = false;
-
-      // Notify after the rest of release is called in order to prevent it from triggering interrupt().
-      this._releaseListener && this._releaseListener( this );
-
-      this.phetioEndEvent();
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
     },
 
@@ -533,7 +567,7 @@ define( function( require ) {
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'PressListener#' + this._id + ' interrupt' );
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
-      if ( this.isPressed ) {
+      if ( this.isPressed && !this._a11yClickInProgress ) {
         sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'PressListener#' + this._id + ' interrupting' );
         this.interrupted = true;
 
@@ -584,22 +618,25 @@ define( function( require ) {
      * @public - In general not needed to be public, but just used in edge cases to get proper click logic for a11y.
      * @a11y
      */
-    click: function( event ) {
+    click: function() {
       if ( this.canClick() ) {
 
         // ensure that button is 'over' so listener can be called while button is down
         this.isOverProperty.set( true );
         this.isPressedProperty.set( true );
 
+        this._a11yClickInProgress = true;
+
         var self = this;
-        Timer.setTimeout( function() {
+        timer.setTimeout( function() {
 
           // no longer down, don't reset 'over' so button can be styled as long as it has focus
           self.isPressedProperty.set( false );
 
-          // TODO: how to define the delay for click interval, see https://github.com/phetsims/scenery/issues/831
-          // how to handle a11y end listener?
-          // endListener && endListener();
+          // call the a11y click specific listener?
+          self._onAccessibleClick && self._onAccessibleClick();
+
+          self._a11yClickInProgress = false;
         }, this._fireOnHoldInterval );
       }
     },
@@ -646,7 +683,9 @@ define( function( require ) {
       }
       !this.isHoveringProperty.isDisposed && this.isHoveringProperty.unlink( this._isHighlightedListener );
 
-      PhetioObject.prototype.dispose.call( this );
+
+      this._pressedEmitter.dispose();
+      this._releasedEmitter.dispose();
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
     }

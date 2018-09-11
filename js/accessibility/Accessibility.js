@@ -140,8 +140,35 @@ define( function( require ) {
   var DEFAULT_DESCRIPTION_TAG_NAME = P_TAG;
   var DEFAULT_LABEL_TAG_NAME = P_TAG;
 
+  // see setAccessibleNameBehavior for more details
+  var DEFAULT_ACCESSIBLE_NAME_BEHAVIOR = function( node, options, accessibleName ) {
+    if ( node.tagName === 'input' ) {
+      options.labelTagName = 'label';
+      options.labelContent = accessibleName;
+    }
+    else if ( AccessibilityUtil.tagNameSupportsContent( node.tagName ) ) {
+      options.innerContent = accessibleName;
+    }
+    else {
+      options.ariaLabel = accessibleName;
+    }
+    return options;
+  };
+
+  // see setHelpTextBehavior for more details
+  var DEFAULT_HELP_TEXT_BEHAVIOR = function( node, options, helpText ) {
+
+    options.descriptionTagName = AccessibilityUtil.DEFAULT_DESCRIPTION_TAG_NAME;
+    options.descriptionContent = helpText;
+    options.appendDescription = true;
+    return options;
+  };
+
   // these elements are typically associated with forms, and support certain attributes
   var FORM_ELEMENTS = AccessibilityUtil.FORM_ELEMENTS;
+
+  // list of input "type" attribute values that support the "checked" attribute
+  var INPUT_TYPES_THAT_SUPPORT_CHECKED = AccessibilityUtil.INPUT_TYPES_THAT_SUPPORT_CHECKED;
 
   // HTMLElement attributes whose value is an ID of another element
   var ASSOCIATION_ATTRIBUTES = AccessibilityUtil.ASSOCIATION_ATTRIBUTES;
@@ -377,15 +404,6 @@ define( function( require ) {
           // this node is "visible" for, see AccessibleDisplaysInfo.js for more information.
           this._accessibleDisplaysInfo = new AccessibleDisplaysInfo( this );
 
-          // @private {Object|null} - If non-null, this node will be represented in the parallel DOM by the accessible content.
-          // The accessibleContent object will be of the form:
-          // {
-          //   createPeer: function( {AccessibleInstance} ): {AccessiblePeer},
-          //   [focusHighlight]: {Bounds2|Shape|Node|string.<'invisible'>}
-          // }
-          // The focus highlight can be a custom Shape, Node, contain the Node's local bounds, or be invisible.
-          this._accessibleContent = null;
-
           // @protected {Array.<AccessibleInstance>} - Empty unless the node contains some accessible instance.
           this._accessibleInstances = [];
 
@@ -395,33 +413,13 @@ define( function( require ) {
           this._accessibleName = null;
 
           // {A11yBehaviorFunctionDef} - function that returns the options needed to set the appropriate accessible name for the Node
-          this._accessibleNameBehavior = function( node, options, accessibleName ) {
-            if ( node.tagName === 'input' ) {
-              options.labelTagName = 'label';
-              options.labelContent = accessibleName;
-            }
-            else if ( AccessibilityUtil.tagNameSupportsContent( node.tagName ) ) {
-              options.innerContent = accessibleName;
-            }
-            else {
-              options.ariaLabel = accessibleName;
-            }
-            return options;
-          };
+          this._accessibleNameBehavior = DEFAULT_ACCESSIBLE_NAME_BEHAVIOR;
 
           // {string|null} - sets the help text of the Node, this most often corresponds to description text.
           this._helpText = null;
 
           // {A11yBehaviorFunctionDef} - sets the help text of the Node, this most often corresponds to description text.
-          // TODO: for efficiency maybe don't set this on all nodes always, https://github.com/phetsims/scenery/issues/795
-          this._helpTextBehavior = function( node, options, helpText ) {
-
-            //TODO: assertions for if using lower api too? https://github.com/phetsims/scenery/issues/795
-            options.descriptionTagName = AccessibilityUtil.DEFAULT_DESCRIPTION_TAG_NAME;
-            options.descriptionContent = helpText;
-            options.appendDescription = true;
-            return options;
-          };
+          this._helpTextBehavior = DEFAULT_HELP_TEXT_BEHAVIOR;
         },
 
 
@@ -431,7 +429,11 @@ define( function( require ) {
 
         /**
          * Adds an accessible input listener. The listener's keys should be DOM event names, and the values should be
-         * functions to be called when that event is fired on the DOM element.
+         * functions to be called when that event is fired on the DOM element. A list of valid DOM event names can be
+         * found in AccessibilityUtil.js.
+         *
+         * NOTE: Currently this method doesn't support adding listeners that are declared on an object's prototype, only
+         * as an object property, see https://github.com/phetsims/scenery/issues/851 for more information.
          * @public
          *
          * @param {Object} accessibleInput
@@ -604,6 +606,27 @@ define( function( require ) {
           }
         },
 
+        /**
+         * Called when assertions are enabled and once the Node has been completely constructed. This is the time to
+         * make sure that options are saet up the way they are expected to be. For example. you don't want accessibleName
+         * and labelContent declared
+         */
+        accessibleAudit: function() {
+
+          if ( this.accessibleContent && assert ) {
+
+            this._inputType && assert( this._tagName.toUpperCase() === INPUT_TAG, 'tagName must be INPUT to support inputType' );
+            this._accessibleChecked && assert( this._tagName.toUpperCase() === INPUT_TAG, 'tagName must be INPUT to support accessibleChecked.' );
+            this._inputValue && assert( this._tagName.toUpperCase() === INPUT_TAG, 'tagName must be INPUT to support inputValue' );
+            this._accessibleChecked && assert( INPUT_TYPES_THAT_SUPPORT_CHECKED.indexOf( this._inputType.toUpperCase() ) >= 0, 'inputType does not support checked attribute: ' + this._inputType );
+            this._focusHighlightLayerable && assert( this.focusHighlight instanceof phet.scenery.Node, 'focusHighlight must be Node if highlight is layerable' );
+          }
+
+          for ( let i = 0; i < this.children.length; i++ ) {
+            this.children[ i ].accessibleAudit();
+          }
+        },
+
         /***********************************************************************************************************/
         // HIGHER LEVEL API: GETTERS AND SETTERS FOR A11Y API OPTIONS
         //
@@ -613,7 +636,9 @@ define( function( require ) {
 
         /**
          * Set the Node's accessible content in a way that will define the Accessible Name for the browser. Different
-         * HTML components and code situations require different methods of setting the Accessible Name.
+         * HTML components and code situations require different methods of setting the Accessible Name. See
+         * setAccessibleNameBehavior for details on how this string is rendered in the PDOM. Setting to null will clear
+         * this Node's accessibleName
          *
          * @param {string|null} accessibleName
          */
@@ -687,7 +712,8 @@ define( function( require ) {
 
 
         /**
-         * Set the help text for a Node
+         * Set the help text for a Node. See setAccessibleNameBehavior for details on how this string is
+         * rendered in the PDOM. Null will clear the help text for this Node.
          * @param {string|null} helpText
          */
         setHelpText: function( helpText ) {
@@ -717,7 +743,7 @@ define( function( require ) {
 
         /**
          * helpTextBehavior is a function that will set the appropriate options on this node to get the desired
-         * "Help Text"
+         * "Help Text".
          *
          * @param {A11yBehaviorFunctionDef|function} helpTextBehavior
          */
@@ -866,7 +892,8 @@ define( function( require ) {
          * @param {string|null} inputType
          */
         setInputType: function( inputType ) {
-          assert && assert( this._tagName.toUpperCase() === INPUT_TAG, 'tag name must be INPUT to support inputType' );
+          assert && assert( inputType === null || typeof inputType === 'string' );
+          assert && this.tagName && assert( this._tagName.toUpperCase() === INPUT_TAG, 'tag name must be INPUT to support inputType' );
 
           this._inputType = inputType;
           for ( var i = 0; i < this._accessibleInstances.length; i++ ) {
@@ -902,6 +929,8 @@ define( function( require ) {
          * @param {boolean} appendLabel
          */
         setAppendLabel: function( appendLabel ) {
+          assert && assert( typeof appendLabel === 'boolean' );
+
           this._appendLabel = appendLabel;
 
           // TODO: can we do this without recomputing everything?
@@ -933,6 +962,8 @@ define( function( require ) {
          * @param {boolean} appendDescription
          */
         setAppendDescription: function( appendDescription ) {
+          assert && assert( typeof appendDescription === 'boolean' );
+
           this._appendDescription = appendDescription;
 
           // TODO: can we do this without recomputing everything?
@@ -1275,7 +1306,7 @@ define( function( require ) {
 
             // if focus highlight is layerable, it must be a node in the scene graph
             assert && assert( focusHighlight instanceof phet.scenery.Node );
-            focusHighlight.visible = this.focused;
+            focusHighlight.visible = isFocused;
           }
 
           // Reset the focus after invalidating the content.
@@ -1337,6 +1368,7 @@ define( function( require ) {
          * @param {boolean|Node} groupHighlight
          */
         setGroupFocusHighlight: function( groupHighlight ) {
+          assert && assert( typeof groupHighlight === 'boolean' || groupHighlight instanceof phet.scenery.Node );
           this._groupFocusHighlight = groupHighlight;
         },
         set groupFocusHighlight( groupHighlight ) { this.setGroupFocusHighlight( groupHighlight ); },
@@ -1364,15 +1396,15 @@ define( function( require ) {
 
           // validation if assert is enabled
           if ( assert ) {
+            assert( Array.isArray( ariaLabelledbyAssociations ) );
             for ( i = 0; i < ariaLabelledbyAssociations.length; i++ ) {
               associationObject = ariaLabelledbyAssociations[ i ];
-              assert && AccessibilityUtil.validateAssociationObject( associationObject );
+              AccessibilityUtil.validateAssociationObject( associationObject );
             }
           }
 
-          // if the list isn't the same, TODO: make order in the list not matter
+          // if the list isn't the same, TODO: make order in the list not matter, perhaps with sorting? https://stackoverflow.com/questions/29951293/using-lodash-to-compare-arrays-items-existence-without-order
           if ( !_.isEqual( ariaLabelledbyAssociations, this._ariaLabelledbyAssociations ) ) {
-
 
             var beforeOnly = []; // Will hold all nodes that will be removed.
             var afterOnly = []; // Will hold all nodes that will be "new" children (added)
@@ -1380,7 +1412,6 @@ define( function( require ) {
 
             // get a difference of the desired new list, and the old
             arrayDifference( ariaLabelledbyAssociations, this._ariaLabelledbyAssociations, afterOnly, beforeOnly, inBoth );
-
 
             // remove each current associationObject that isn't in the new list
             for ( i = 0; i < beforeOnly.length; i++ ) {
@@ -1390,7 +1421,6 @@ define( function( require ) {
 
             assert && assert( this._ariaLabelledbyAssociations.length === inBoth.length,
               'Removing associations should not have triggered other association changes' );
-
 
             // add each association from the new list that hasn't been added yet
             for ( i = 0; i < afterOnly.length; i++ ) {
@@ -1459,7 +1489,7 @@ define( function( require ) {
          * @public (scenery-internal)
          */
         removeNodeThatIsAriaLabelledByThisNode: function( node ) {
-          assert && phet && phet.scenery && assert( node instanceof phet.scenery.Node );
+          assert && assert( node instanceof phet.scenery.Node );
           var indexOfNode = _.indexOf( this._nodesThatAreAriaLabelledbyThisNode, node );
           assert && assert( indexOfNode >= 0 );
           this._nodesThatAreAriaLabelledbyThisNode.splice( indexOfNode, 1 );
@@ -1509,6 +1539,7 @@ define( function( require ) {
         setAriaDescribedbyAssociations: function( ariaDescribedbyAssociations ) {
           var associationObject;
           if ( assert ) {
+            assert( Array.isArray( ariaDescribedbyAssociations ) );
             for ( var j = 0; j < ariaDescribedbyAssociations.length; j++ ) {
               associationObject = ariaDescribedbyAssociations[ j ];
               assert && AccessibilityUtil.validateAssociationObject( associationObject );
@@ -1518,7 +1549,6 @@ define( function( require ) {
           // if the list isn't the same, TODO: make order in the list not matter
           if ( !_.isEqual( ariaDescribedbyAssociations, this._ariaDescribedbyAssociations ) ) {
 
-
             var beforeOnly = []; // Will hold all nodes that will be removed.
             var afterOnly = []; // Will hold all nodes that will be "new" children (added)
             var inBoth = []; // Child nodes that "stay". Will be ordered for the "after" case.
@@ -1526,7 +1556,6 @@ define( function( require ) {
 
             // get a difference of the desired new list, and the old
             arrayDifference( ariaDescribedbyAssociations, this._ariaDescribedbyAssociations, afterOnly, beforeOnly, inBoth );
-
 
             // remove each current associationObject that isn't in the new list
             for ( i = 0; i < beforeOnly.length; i++ ) {
@@ -1536,7 +1565,6 @@ define( function( require ) {
 
             assert && assert( this._ariaDescribedbyAssociations.length === inBoth.length,
               'Removing associations should not have triggered other association changes' );
-
 
             // add each association from the new list that hasn't been added yet
             for ( i = 0; i < afterOnly.length; i++ ) {
@@ -1859,10 +1887,7 @@ define( function( require ) {
          */
         setInputValue: function( value ) {
           assert && assert( value === null || typeof value === 'string' || typeof value === 'number' );
-
-          if ( this._tagName ) {
-            assert && assert( _.includes( FORM_ELEMENTS, this._tagName.toUpperCase() ), 'dom element must be a form element to support value' );
-          }
+          assert && this._tagName && assert( _.includes( FORM_ELEMENTS, this._tagName.toUpperCase() ), 'dom element must be a form element to support value' );
 
           value = '' + value;
           this._inputValue = value;
@@ -1894,10 +1919,10 @@ define( function( require ) {
           assert && assert( typeof checked === 'boolean' );
 
           if ( this._tagName ) {
-            assert && assert( this._tagName === 'input', 'cannot set checked on a non input tag.' );
+            assert && assert( this._tagName.toUpperCase() === INPUT_TAG, 'Cannot set checked on a non input tag.' );
           }
           if ( this._inputType ) {
-            assert && assert( [ 'radio', 'checkbox' ].indexOf( this._inputType ) >= 0, 'Invalid inputType: ' + this._inputType );
+            assert && assert( INPUT_TYPES_THAT_SUPPORT_CHECKED.indexOf( this._inputType.toUpperCase() ) >= 0, 'inputType does not support checked: ' + this._inputType );
           }
 
           this._accessibleChecked = checked;
@@ -1937,12 +1962,18 @@ define( function( require ) {
          * a screen reader.
          *
          * @param {string} attribute - string naming the attribute
-         * @param {string|boolean} value - the value for the attribute, if boolean, then it will be set as a javascript property on the HTMLElement rather than an attribute
+         * @param {string|boolean|number} value - the value for the attribute, if boolean, then it will be set as a javascript property on the HTMLElement rather than an attribute
          * @param {Object} [options]
          * @public
          */
         setAccessibleAttribute: function( attribute, value, options ) {
+          assert && assert( typeof attribute === 'string' );
+          assert && assert( typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number' );
+          assert && options && assert( Object.getPrototypeOf( options ) === Object.prototype,
+            'Extra prototype on accessibleAttribute options object is a code smell' );
+
           options = _.extend( {
+
             // {string|null} - If non-null, will set the attribute with the specified namespace. This can be required
             // for setting certain attributes (e.g. MathML).
             namespace: null,
@@ -1983,6 +2014,8 @@ define( function( require ) {
          */
         removeAccessibleAttribute: function( attribute, options ) {
           assert && assert( typeof attribute === 'string' );
+          assert && options && assert( Object.getPrototypeOf( options ) === Object.prototype,
+            'Extra prototype on accessibleAttribute options object is a code smell' );
 
           options = _.extend( {
 
@@ -2172,7 +2205,7 @@ define( function( require ) {
             }
 
             // pop focused nodes from the stack (that were added above)
-            _.each( arrayAccessibleOrder, function( descendant ) {
+            _.each( arrayAccessibleOrder, function() {
               pruneStack.pop();
             } );
 
@@ -2201,18 +2234,15 @@ define( function( require ) {
         set accessibleContent( value ) { this.onAccessibleContentChange( value ); },
 
         /**
-         * Returns the accessible content for this node.
+         * Returns whether or not this Node has any accessibleContent defined.
          * @public (scenery-internal)
          *
-         * TODO: this should be better named
-         * @returns {null|Object}
+         * @returns {boolean}
          */
-        getAccessibleContent: function() {
-
+        hasAccessibleContent: function() {
           return !!this._tagName;
-
         },
-        get accessibleContent() { return this.getAccessibleContent(); },
+        get accessibleContent() { return this.hasAccessibleContent(); },
 
 
         /**
