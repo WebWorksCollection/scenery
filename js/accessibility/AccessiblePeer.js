@@ -732,6 +732,10 @@ define( function( require ) {
             element.setAttribute( 'hidden', '' );
           }
         }
+
+        // invalidate CSS transforms because when 'hidden' the content will have no dimensions in the viewport, see 
+        // updateCSSTransforms
+        this.invalidateCSSTransforms();
       }
     },
 
