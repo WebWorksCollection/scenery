@@ -158,7 +158,7 @@ define( function( require ) {
           this._primarySibling.style.position = 'relative';
 
           // TODO: another way to make sure that DOM is on top of display? Is this critical?
-          this._primarySibling.style.zIndex = '10000';
+          // this._primarySibling.style.zIndex = '10000';
         }
 
         return this;
@@ -459,7 +459,13 @@ define( function( require ) {
      * to have the value be set correctly so we cannot use onAttributeChange for this.
      */
     onInputValueChange: function() {
-      this.primarySibling.value = this.node.inputValue;
+      if ( this.node.inputValue === null ) {
+        this.primarySibling.removeAttribute( 'value' );
+      }
+      else {
+        this.primarySibling.value = this.node.inputValue;
+
+      }
     },
 
     /**
@@ -888,6 +894,12 @@ define( function( require ) {
 
         // use it to transform this node's dom to local matrix
         matrix = matrix.timesMatrix( this.domToLocalMatrix );
+        if ( this.node.focusable ) {
+          this.primarySibling.style.position = 'fixed';
+        }
+        else {
+          this.primarySibling.style.position = 'absolute';
+        }
         this.primarySibling.style.transform = matrix.getCSSTransform();
       }
       else {
@@ -923,6 +935,7 @@ define( function( require ) {
       // remove listeners
       this._primarySibling.removeEventListener( 'blur', this.blurEventListener );
       this._primarySibling.removeEventListener( 'focus', this.focusEventListener );
+      this._primarySibling.removeEventListener( 'pointerdown', this.pointerDownListener );
       this.transformTracker.removeListener( this.transformListener );
       this._primaryObserver.disconnect();
 

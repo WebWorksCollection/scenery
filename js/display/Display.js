@@ -464,6 +464,8 @@ define( function( require ) {
 
           overlay.update();
         }
+
+        this._rootAccessibleInstance.peer.primarySibling.style.zIndex = zIndex++;
       }
 
       if ( this._accessible && this._mobileA11yTest ) {

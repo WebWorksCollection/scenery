@@ -461,7 +461,8 @@ define( function( require ) {
                        ? document.createElementNS( options.namespace, tagName )
                        : document.createElement( tagName );
 
-      domElement.tabIndex = focusable ? 0 : -1;
+      // TODO: I would have to have a different solution for IE11, is this still necessary?
+      // domElement.tabIndex = focusable ? 0 : -1;
 
       // if transforming the PDOM elements for mobile a11y support, add style attributes to support the transform
       // attribute
@@ -469,11 +470,11 @@ define( function( require ) {
 
         // positioned absolutely, the bounds are defined relative to the top left at 0, 0 so our transformations are
         // correct from DOM to local bounds
-        domElement.style.position = 'absolute';
+        // domElement.style.position = 'absolute'; // helps move container elements out of the way
         domElement.style.top = '0';
         domElement.style.left = '0';
         domElement.style.padding = '0';
-        domElement.style.transformOrigin = 'left top'; 
+        domElement.style.transformOrigin = 'left top';
 
         // so that client width/height are exact
         domElement.style.borderWidth = '0';
@@ -483,6 +484,14 @@ define( function( require ) {
 
         // doesn't really impact behavior but looks a little nicer?
         domElement.style.whiteSpace = 'nowrap';
+
+        // This attribute is absolutely critical because it prevents the PDOM from interfering with the rest of the
+        // scenery pointer input. To not remove unless you want to re-implement scenery input.
+        domElement.style.pointerEvents = 'none';
+
+        if ( focusable ) {
+          domElement.style.pointerEvents = 'none';
+        }
 
         // so that elements can never be seen visually, can comment this out to "see" transformed elements in the PDOM
         // text and backgrounds of elements are made transparent where possible, and opacity takes care of the rest
@@ -514,6 +523,7 @@ define( function( require ) {
      */
     hideElement: function( element ) {
       element.style.transform = HIDING_MATRIX_CSS;
+      element.style.position = 'static';
     },
 
     TAGS: {
