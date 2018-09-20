@@ -13,7 +13,6 @@ define( function( require ) {
   // modules
   var Random = require( 'DOT/Random' );
   var scenery = require( 'SCENERY/scenery' );
-  var Matrix3 = require( 'DOT/Matrix3' );
 
   // constants
   var NEXT = 'NEXT';
@@ -59,9 +58,6 @@ define( function( require ) {
 
   // valid types of DOM events that can be added to a node
   var DOM_EVENTS = [ 'input', 'change', 'click', 'keydown', 'keyup', 'focus', 'blur' ];
-
-  // a matrix in its CSS form that "hides" an HTMLElement by shifting it off screen and making it very small
-  var HIDING_MATRIX_CSS = Matrix3.translation( -1000, 0 ).timesMatrix( Matrix3.scaling( 0.1, 0.1 ) ).getCSSTransform();
 
   // these elements require a minimum width to be visible in Safari, see https://github.com/phetsims/john-travoltage/issues/204
   // NOTE: if transforming PDOM over display, this is not needed
@@ -466,14 +462,15 @@ define( function( require ) {
 
       // if transforming the PDOM elements for mobile a11y support, add style attributes to support the transform
       // attribute
-      if ( window.phet && window.phet.chipper.queryParameters.mobileA11yTest ) {
+      var mobileA11yTest = window.phet && window.phet.chipper.queryParameters.mobileA11yTest;
+      if ( mobileA11yTest ) {
 
         // positioned absolutely, the bounds are defined relative to the top left at 0, 0 so our transformations are
         // correct from DOM to local bounds
-        // domElement.style.position = 'absolute'; // helps move container elements out of the way
-        domElement.style.top = '0';
-        domElement.style.left = '0';
-        domElement.style.padding = '0';
+        domElement.style.position = 'fixed'; // helps move container elements out of the way, doesn't seem to interfere
+        domElement.style.top = '0px';
+        domElement.style.left = '0px';
+        domElement.style.padding = '0px';
         domElement.style.transformOrigin = 'left top';
 
         // so that client width/height are exact
@@ -489,9 +486,8 @@ define( function( require ) {
         // scenery pointer input. To not remove unless you want to re-implement scenery input.
         domElement.style.pointerEvents = 'none';
 
-        if ( focusable ) {
-          domElement.style.pointerEvents = 'none';
-        }
+        domElement.style.color = 'white';
+
 
         // so that elements can never be seen visually, can comment this out to "see" transformed elements in the PDOM
         // text and backgrounds of elements are made transparent where possible, and opacity takes care of the rest
@@ -522,8 +518,22 @@ define( function( require ) {
      * @param {HTMLElement}
      */
     hideElement: function( element ) {
-      element.style.transform = HIDING_MATRIX_CSS;
-      element.style.position = 'static';
+      // element.style.transform = HIDING_MATRIX_CSS;
+      // element.style.position = 'static';
+
+      // element.style.position = 'absolute';
+      element.style.left = '-9999px';
+      element.style.top = '-9999px';
+
+      // so text does not extend into the display
+      // element.style.display = 'inline-block';
+      // element.style.overflow = 'hidden';
+      // element.style.width = '250px';
+      // element.style.visibility = 'hidden';
+      // element.style.fontSize = '1px'; // at least 1 px or else VO skips over things
+
+      // element.style.wordWrap = 'break-word';
+
     },
 
     TAGS: {

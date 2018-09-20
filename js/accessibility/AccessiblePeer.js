@@ -32,8 +32,18 @@ define( function( require ) {
   var LABEL_TAG = AccessibilityUtil.TAGS.LABEL;
   var INPUT_TAG = AccessibilityUtil.TAGS.INPUT;
 
-  // DOM observers that apply new css transformations are triggered when children or inner content change
+  // constants
+  // DOM observers that apply new css transformations are triggered when children, attributes, or inner content change
   var OBSERVER_CONFIG = { attributes: false, childList: true, characterData: true };
+
+  // matrices reused in calculations
+  var LABEL_SCALING_MATRIX = Matrix3.scaling( 0.05, 0.05 );
+
+  // mutable matrices, to avoid creating lots of them unnecessarily
+  var labelTranslationMatrix = new Matrix3();
+  var globalNodeTranslationMatrix = new Matrix3();
+  var globalToClientScaleMatrix = new Matrix3();
+  var nodeScaleMagnitudeMatrix = new Matrix3();
 
   /**
    * Constructor.
@@ -118,20 +128,20 @@ define( function( require ) {
 
       // @private - the difference between the nodes along this trail and the nodes of the parent accessible instance's
       // trail, including this node - populated in update
-      this.nodesToParentInstance = [];
+      this.visibleNodesToAccessibleParent = [];
 
       // @private - the trail to the visual instance since due to 
       this.visualTrail = this.accessibleInstance.guessVisualTrail();
 
       // walk up the visual trail, trying to find the ancestor accessible instance along the visual trail (not
       // necessarily the accessible instance parent)
-      this.nodesToParentInstance.push( this.node );
+      this.visibleNodesToAccessibleParent.push( this.node );
       for ( var i = this.visualTrail.length - 2; i >= 0; i-- ) {
         var visualParent = this.visualTrail.get( i );
 
         // ancestor needs to come first in the array, so we add these to front
         if ( !visualParent.tagName ) {
-          this.nodesToParentInstance.unshift( visualParent );
+          this.visibleNodesToAccessibleParent.unshift( visualParent );
         }
         else {
 
@@ -242,9 +252,6 @@ define( function( require ) {
       if ( options.labelTagName ) {
         labelSibling = AccessibilityUtil.createElement( options.labelTagName, false );
         labelSibling.id = 'label-' + uniqueId;
-
-        // labels are just pushed off screen, only inputs are required to be transformed
-        AccessibilityUtil.hideElement( labelSibling );
       }
 
       // create the description DOM element representing this instance
@@ -857,63 +864,57 @@ define( function( require ) {
      * Update the CSS transform of the primary element.
      */
     updateCSSTransforms: function() {
+      assert && assert( window.phet && phet.chipper.queryParameters.mobileA11yTest, 'should only be hit when testing' );
       assert && assert( this.primarySibling, 'a primary sibling should be defined to receive a transform' );
-      assert && assert( window.phet && phet.chipper.queryParameters.mobileA11yTest, 'should only be run when testing' );
 
-      var localBounds = this.node.localBounds;
-      var clientWidth = this.primarySibling.clientWidth;
-      var clientHeight = this.primarySibling.clientHeight;
+      // CSS transformation only needs to be applied if the node is focusable - otherwise, the element will be found
+      // by gesture navigation with the virtual cursor. Bounds for non-focusable elements in the Viewport don't need to
+      // be accurate because the AT doesn't need send events to them.
+      if ( this.node.focusable ) {
 
-      // only define the DOM to local matrix if client bounds are defined
-      if ( clientWidth > 0 && clientHeight > 0 ) {
+        var localBounds = this.node.localBounds;
 
-        // inefficient version, can potentially combine later to not create extra matrices that aren't used
-        // the translation matrix for the node's bounds in its local coordinate frame
-        var localNodeTranslation = Matrix3.translation( localBounds.minX, localBounds.minY );
+        if ( localBounds.isFinite() ) {
+          var localToGlobalMatrix = this.node.getLocalToGlobalMatrix();
+          var globalBounds = localBounds.transformed( localToGlobalMatrix );
+          var nodeScaleVector = this.node.getScaleVector();
 
-        // scale matrix for "client" HTML element, scale to make the HTML element's DOM bounds match the
-        // local bounds of the node
-        var localToClientScale = Matrix3.scale( localBounds.width / clientWidth, localBounds.height / clientHeight );
-        var scaleMagnitude = Matrix3.scale( this.node.getScaleVector().x, this.node.getScaleVector().y );
+          var primaryBounds = getClientBounds( this.primarySibling );
+          var primaryWidth = primaryBounds.width;
+          var primaryHeight = primaryBounds.height;
 
-        // combine these two in a single transformation matrix
-        this.domToLocalMatrix = localNodeTranslation.timesMatrix( localToClientScale ).timesMatrix( scaleMagnitude );
-      }
+          if ( primaryWidth > 0 && primaryHeight > 0 ) {
+            var primaryMatrix = getCSSMatrix( this.primarySibling, primaryWidth, primaryHeight, globalBounds, nodeScaleVector );
+            this.primarySibling.style.transform = primaryMatrix.getCSSTransform();
+          }
 
-      if ( localBounds.isFinite() ) {
+          if ( this.labelSibling ) {
 
-        // transform the "dom to local matrix" to the global coordinate frame, starting with parent's inverted
-        // domToLocalMatrix, then walking down the scene graph to transform to ancestor coordinates
-        var parentPeer = this.accessibleInstance.parent.peer;
-        var matrix = parentPeer.domToLocalMatrix.inverted();
-        var relativeNodes = this.nodesToParentInstance;
+            // If there is a label sibling, it needs to be transformed as well because VoiceOver will include its
+            // bounding rectangle in its calculation to determine where to send the fake pointer event after a click
+            // gesture. However, if the label overlaps the focusable element, the element becomes un-touchable with
+            // VO touch navigation. So we add a scale and translation to the label sibling to shift it out of the way.
+            // This is a workaround, but other CSS attributes like zIndex, visibility, hidden, and other things haven't
+            // been able to get this to work otherwise.
+            var labelBounds = getClientBounds( this.labelSibling );
+            var labelWidth = labelBounds.width;
+            var labelHeight = labelBounds.height;
 
-        for ( var i = 0; i < relativeNodes.length; i++ ) {
-          matrix = matrix.timesMatrix( relativeNodes[ i ].getMatrix() );
+            if ( labelHeight > 0 && labelWidth > 0 ) {
+              var labelMatrix = getCSSMatrix( this.labelSibling, labelWidth, labelHeight, globalBounds, nodeScaleVector );
+
+              labelTranslationMatrix.setToTranslation( labelWidth / 2, labelHeight );
+              labelMatrix.multiplyMatrix( labelTranslationMatrix ).multiplyMatrix( LABEL_SCALING_MATRIX );
+              this.labelSibling.style.transform = labelMatrix.getCSSTransform();
+            }
+          }
         }
-
-        // use it to transform this node's dom to local matrix
-        matrix = matrix.timesMatrix( this.domToLocalMatrix );
-        if ( this.node.focusable ) {
-          this.primarySibling.style.position = 'fixed';
-        }
-        else {
-          this.primarySibling.style.position = 'absolute';
-        }
-        this.primarySibling.style.transform = matrix.getCSSTransform();
       }
       else {
 
-        // If the node has no bounds, this sibling is purely fro DOM content or scene graph structure and 
-        // doesn't have visual representation. Just hide this element.
-        if ( clientHeight !== 0 && clientWidth !== 0 )  {
-          AccessibilityUtil.hideElement( this.primarySibling );
-        }
-
-        // if the node has no bounds, this sibling is purely for DOM content or scene graph structure and doesn't
-        // have visual representation - just hide this by shrinking the content to nothing
-        // TODO: But this shrinks primary elements that are containers. Maybe just do this for elements with
-        // inner content?
+        // otherwise, just make sure the element is off screen (but doesn't impact other transformations)
+        AccessibilityUtil.hideElement( this.primarySibling );
+        this.labelSibling && AccessibilityUtil.hideElement( this.labelSibling );
       }
     },
 
@@ -965,6 +966,54 @@ define( function( require ) {
   Poolable.mixInto( AccessiblePeer, {
     initalize: AccessiblePeer.prototype.initializeAccessiblePeer
   } );
+
+  //--------------------------------------------------------------------------
+  // Helper functions
+  //--------------------------------------------------------------------------
+
+  /**
+   * Gets an object with the width and height of an HTML element in pixels, prior to any scaling. clientWidth and
+   * clientHeight are zero for elements with inline layout and elemetns without CSS. For those elements we fall back
+   * to the boundingClientRect, which at that point will describe the dimensions of the element prior to scaling.
+   * 
+   * @param  {HTMLElement} siblingElement
+   * @return {Object} - Returns an object with two entries, { width: {number}, height: {number} }
+   */
+  function getClientBounds( siblingElement ) {
+    var clientWidth = siblingElement.clientWidth;
+    var clientHeight = siblingElement.clientHeight;
+
+    if ( clientWidth === 0 && clientHeight === 0 ) {
+      clientWidth = siblingElement.getBoundingClientRect().width;
+      clientHeight = siblingElement.getBoundingClientRect().height;
+    }
+
+    return { width: clientWidth, height: clientHeight };
+  }
+
+  /**
+   * Get a matrix that can be used as the CSS transform for elements in the DOM.
+   * @param  {HTMLElement} element - the element to receive the CSS transform
+   * @param  {number} clientWidth - width of the element to transform in pixels
+   * @param  {number} clientHeight - height of the element to transform in pixels
+   * @param  {Bounds2} globalBounds - Bounds of the AccessiblePeer's node in the global coordinate frame.
+   * @param  {Vector2} scaleVector - the scale magnitude Vector for the Node.
+   * @return {Matrix3}
+   */
+  function getCSSMatrix( element, clientWidth, clientHeight, globalBounds, scaleVector ) {
+
+    // inefficient version, can potentially combine later to not create extra matrices that aren't used
+    // the translation matrix for the node's bounds in its local coordinate frame
+    globalNodeTranslationMatrix.setToTranslation( globalBounds.minX, globalBounds.minY );
+
+    // scale matrix for "client" HTML element, scale to make the HTML element's DOM bounds match the
+    // local bounds of the node
+    globalToClientScaleMatrix.setToScale( globalBounds.width / clientWidth, globalBounds.height / clientHeight );
+    nodeScaleMagnitudeMatrix.setToScale( scaleVector.x, scaleVector.y );
+
+    // combine these two in a single transformation matrix
+    return globalNodeTranslationMatrix.multiplyMatrix( globalToClientScaleMatrix ).multiplyMatrix( nodeScaleMagnitudeMatrix );
+  }
 
   return AccessiblePeer;
 } );
