@@ -486,15 +486,12 @@ define( function( require ) {
         // scenery pointer input. To not remove unless you want to re-implement scenery input.
         domElement.style.pointerEvents = 'none';
 
-        domElement.style.color = 'white';
-
-
         // so that elements can never be seen visually, can comment this out to "see" transformed elements in the PDOM
         // text and backgrounds of elements are made transparent where possible, and opacity takes care of the rest
         // for things like radio buttons, check boxes, and others where color doesn't change element visuals
-        // domElement.style.color = 'Transparent';
-        // domElement.style.backgroundColor = 'Transparent';
-        // domElement.style.opacity = '0.0001';
+        domElement.style.color = 'Transparent';
+        domElement.style.backgroundColor = 'Transparent';
+        domElement.style.opacity = '0.0001';
       }
       else {
 
