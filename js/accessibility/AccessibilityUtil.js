@@ -163,7 +163,7 @@ define( function( require ) {
       return false;
     }
 
-    // if element is for formatting, skipe over it - required since IE gives these tabindex="0" 
+    // if element is for formatting, skipe over it - required since IE gives these tabindex="0"
     if ( _.includes( FORMATTING_TAGS, domElement.tagName ) ) {
       return false;
     }
@@ -227,6 +227,7 @@ define( function( require ) {
 
     /**
      * Return a random focusable element in the document. Particularly useful for fuzz testing.
+     * @public
      *
      * @return {HTMLElement}
      */
@@ -307,6 +308,7 @@ define( function( require ) {
      * If the text content uses formatting tags, set the content as innerHTML. Otherwise, set as textContent.
      * In general, textContent is more secure and more performant because it doesn't trigger DOM styling and
      * element insertions.
+     * @public
      *
      * @param {Element} domElement
      * @param {string} textContent - could have acceptable HTML "formatting" tags in it
@@ -362,6 +364,7 @@ define( function( require ) {
      * Given a tagName, test if the element will be focuable by default by the browser.
      * Different from isElementFocusable, because this only looks at tags that the browser will automatically put
      * a >=0 tab index on.
+     * @public
      *
      * NOTE: Uses a set of browser types as the definition of default focusable elements,
      * see https://stackoverflow.com/questions/1599660/which-html-elements-can-receive-focus
@@ -374,6 +377,7 @@ define( function( require ) {
     },
 
     /**
+     * @public
      *
      * @param {string} tagName
      * @returns {boolean} - true if the tag does support inner content
@@ -384,6 +388,8 @@ define( function( require ) {
 
     /**
      * Helper function to remove multiple HTMLElements from another HTMLElement
+     * @public
+     *
      * @param {HTMLElement} element
      * @param {Array.<HTMLElement>} childrenToRemove
      */
@@ -401,6 +407,8 @@ define( function( require ) {
 
     /**
      * Helper function to add multiple elements as children to a parent
+     * @public
+     *
      * @param {HTMLElement} element - to add children to
      * @param {Array.<HTMLElement>} childrenToAdd
      * @param {HTMLElement} [beforeThisElement] - if not supplied, the insertBefore call will just use 'null'
@@ -415,6 +423,8 @@ define( function( require ) {
 
     /**
      * Given an associationObject for either aria-labelledby or aria-describedby, make sure it has the right signature.
+     * @public
+     *
      * @param {Object} associationObject
      */
     validateAssociationObject: function( associationObject ) {
@@ -432,7 +442,7 @@ define( function( require ) {
         assert && assert( expectedKeys.indexOf( objectKey ) >= 0, 'unexpected key: ' + objectKey );
       }
 
-      assert && phet && phet.scenery && assert( associationObject.otherNode instanceof phet.scenery.Node );
+      assert && assert( associationObject.otherNode instanceof scenery.Node );
       assert && assert( typeof associationObject.thisElementName === 'string' );
       assert && assert( typeof associationObject.otherElementName === 'string' );
     },

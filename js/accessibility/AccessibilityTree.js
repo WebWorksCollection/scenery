@@ -190,8 +190,6 @@ define( function( require ) {
      * Called when a node has an accessibleContent change.
      * @public
      *
-     * NOTE: Due to the accessibleContent guard, this will not be called with oldContent and newContent equal to `null`.
-     *
      * @param {Node} node
      */
     accessibleContentChange: function( node ) {
@@ -216,6 +214,7 @@ define( function( require ) {
 
         AccessibilityTree.removeTree( parent, node, accessibleTrails );
       }
+
       // Do all removals before adding anything back in.
       for ( i = 0; i < parents.length; i++ ) {
         AccessibilityTree.addTree( parents[ i ], node, accessibleTrailsList[ i ] );

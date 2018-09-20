@@ -1460,6 +1460,7 @@ define( function( require ) {
       this.validateSelfBounds();
       return this._selfBounds;
     },
+    get safeSelfBounds() { return this.getSafeSelfBounds(); },
 
     /**
      * Returns the bounding box that should contain all content of our children in our local coordinate frame. Does not
@@ -1546,9 +1547,55 @@ define( function( require ) {
      * @returns {Bounds2}
      */
     getTransformedSelfBounds: function( matrix ) {
-      this.validateBounds(); // TODO: consider more fine-grained validation?
-      // assume that we take up the entire rectangular bounds.
-      return this._selfBounds.transformed( matrix );
+      // assume that we take up the entire rectangular bounds by default
+      return this.selfBounds.transformed( matrix );
+    },
+
+    /**
+     * Meant to be overridden in sub-types that have more accurate bounds determination for when we are transformed.
+     * Usually rotation is significant here, so that transformed bounds for non-rectangular shapes will be different.
+     * @public
+     *
+     * This should include the "full" bounds that guarantee everything rendered should be inside (e.g. Text, where the
+     * normal bounds may not be sufficient).
+     *
+     * @param {Matrix3} matrix
+     * @returns {Bounds2}
+     */
+    getTransformedSafeSelfBounds: function( matrix ) {
+      return this.safeSelfBounds.transformed( matrix );
+    },
+
+    /**
+     * Returns the visual "safe" bounds that are taken up by this node and its subtree. Notably, this is essentially the
+     * combined effects of the "visible" bounds (i.e. invisible nodes do not contribute to bounds), and "safe" bounds
+     * (e.g. Text, where we need a larger bounds area to guarantee there is nothing outside).
+     * @public
+     *
+     * NOTE: This method is not optimized, and may create garbage and not be the fastest.
+     *
+     * @param {Matrix3} [matrix] - If provided, will return the bounds assuming the content is transformed with the
+     *                             given matrix.
+     * @returns {Bounds2}
+     */
+    getVisualBounds: function( matrix ) {
+      const localMatrix = ( matrix || Matrix3.IDENTITY ).timesMatrix( this.matrix );
+
+      const bounds = Bounds2.NOTHING.copy();
+
+      if ( this._visible ) {
+        if ( !this.selfBounds.isEmpty() ) {
+          bounds.includeBounds( this.getTransformedSafeSelfBounds( localMatrix ) );
+        }
+
+        if ( this._children.length ) {
+          for ( var i = 0; i < this._children.length; i++ ) {
+            bounds.includeBounds( this._children[ i ].getVisualBounds( localMatrix ) );
+          }
+        }
+      }
+
+      return bounds;
     },
 
     /**
@@ -1839,12 +1886,15 @@ define( function( require ) {
      * @returns {Node} - Returns 'this' reference, for chaining
      */
     removeInputListener: function( listener ) {
-      // ensure the listener is in our list
-      assert && assert( _.includes( this._inputListeners, listener ) );
+      var index = _.indexOf( this._inputListeners, listener );
 
-      this._inputListeners.splice( _.indexOf( this._inputListeners, listener ), 1 );
-      this._picker.onRemoveInputListener();
-      if ( assertSlow ) { this._picker.audit(); }
+      // ensure the listener is in our list (ignore assertion for disposal, see https://github.com/phetsims/sun/issues/394)
+      assert && assert( this._isDisposed || index >= 0, 'Could not find input listener to remove' );
+      if ( index >= 0 ) {
+        this._inputListeners.splice( index, 1 );
+        this._picker.onRemoveInputListener();
+        if ( assertSlow ) { this._picker.audit(); }
+      }
 
       return this;
     },
@@ -4275,9 +4325,10 @@ define( function( require ) {
         children: [ this ]
       } );
 
+      var transformedBounds = sourceBounds || this.getVisualBounds().dilated( 2 ).roundedOut();
+
       // Unfortunately if we provide a resolution AND bounds, we can't use the source bounds directly.
-      var transformedBounds = sourceBounds;
-      if ( transformedBounds && resolution !== 1 ) {
+      if ( resolution !== 1 ) {
         transformedBounds = new Bounds2(
           resolution * transformedBounds.minX,
           resolution * transformedBounds.minY,
@@ -4310,20 +4361,13 @@ define( function( require ) {
         image.scale( 1 / resolution, 1 / resolution, true );
       }
 
-      // If we have transformedBounds, provide the x/y/width/height.
-      if ( transformedBounds ) {
-        wrapperNode.toCanvas( callback, -transformedBounds.minX, -transformedBounds.minY, transformedBounds.width, transformedBounds.height );
-      }
-      // otherwise we don't want to pass in any extra parameters
-      else {
-        wrapperNode.toCanvas( callback );
-      }
+      wrapperNode.toCanvas( callback, -transformedBounds.minX, -transformedBounds.minY, transformedBounds.width, transformedBounds.height );
 
       assert && assert( image, 'The toCanvas should have executed synchronously' );
 
       wrapperNode.dispose();
 
-      var finalParentBounds = this.bounds;
+      var finalParentBounds = this.getVisualBounds();
       if ( sourceBounds ) {
         // If we provide sourceBounds, don't have resulting bounds that go outside.
         finalParentBounds = sourceBounds.intersection( finalParentBounds );

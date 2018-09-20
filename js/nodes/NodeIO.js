@@ -29,7 +29,7 @@ define( function( require ) {
    * @constructor
    */
   function NodeIO( node, phetioID ) {
-    assert && assertInstanceOf( node, phet.scenery.Node );
+    assert && assertInstanceOf( node, scenery.Node );
     ObjectIO.call( this, node, phetioID );
 
     // TODO: This is in-progress work to convert object properties to Axon Properties, see https://github.com/phetsims/phet-io/issues/1326
@@ -116,7 +116,7 @@ define( function( require ) {
      * @override - to prevent attempted JSON serialization of circular Node
      */
     fromStateObject: function( o ) {
-      return o; // Pass through values defined by subclasses, such as AquaRadioButtonIO.enabled
+      return o; // Pass through values defined by subclasses
     },
 
     documentation: 'The base type for graphical and potentially interactive objects.  NodeIO has nested PropertyIO values ' +
