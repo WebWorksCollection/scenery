@@ -16,6 +16,7 @@ define( function( require ) {
   // modules
   var Random = require( 'DOT/Random' );
   var scenery = require( 'SCENERY/scenery' );
+  var SceneryStyle = require( 'SCENERY/util/SceneryStyle' );
 
   // constants
   var NEXT = 'NEXT';
@@ -71,6 +72,41 @@ define( function( require ) {
 
   // {Array.<String>} attributes that put an ID of another attribute as the value, see https://github.com/phetsims/scenery/issues/819
   var ASSOCIATION_ATTRIBUTES = [ ARIA_LABELLEDBY, ARIA_DESCRIBEDBY ];
+
+  // All elements that use AccessibilityUtil.createElement will have this style. Additional notes about attributes that
+  // should not be used:
+  // padding: 0px; - might assist with correct viewport bounds, but prevents <input> from having defined width
+  SceneryStyle.addRule( '.pdomElement ' +
+  '{' +
+    // fixed to the 'relative' styled root element, to be transformed with left/top
+    'position: fixed;' + 
+
+    // default, to the 'relative' root PDOM element - might change with node transform if focusable
+    'top: 0px;' +
+    'left: 0px;' +
+
+    // for CSS transformations of focusable elements, origin at left top
+    'transform-origin: left top 0px;' +
+
+    // helps get accurate bounds with getBoundingClientRect() for transformations
+    'border-width: 0px;' +
+    'margin: 0px;' +
+    'white-space: nowrap;' +
+
+    // CRITICAL - so PDOM elements do not interfere with rest of scenery input
+    'pointer-events: none;' +
+
+    // So that elements can never be seen visually, can comment this out to "see" transformed elements in the
+    // PDOM. Text and Backgrounds of elements are made transparent where possible, and opacity takes care of the
+    // rest. Content that extends outside of width/height is hidden
+    // for things like radio buttons, check boxes, and others where color doesn't change element visuals
+    // 'color: white' + // helpful for seeing text over a black background for debugging
+    'font-size: 1px;' +
+    'color: transparent;' +
+    'background-color: transparent;' +
+    'opacity: 0.0001;' +
+  '}'
+);
 
   /**
    * Get all 'element' nodes off the parent element, placing them in an array for easy traversal.  Note that this
@@ -467,7 +503,6 @@ define( function( require ) {
                        ? document.createElementNS( options.namespace, tagName )
                        : document.createElement( tagName );
 
-      // TODO: I would have to have a different solution for IE11, is this still necessary?
       domElement.tabIndex = focusable ? 0 : -1;
 
       // if transforming the PDOM elements for mobile a11y support, add style attributes to support the transform
@@ -475,39 +510,8 @@ define( function( require ) {
       var mobileA11yTest = window.phet && window.phet.chipper.queryParameters.mobileA11yTest;
       if ( mobileA11yTest ) {
 
-        // positioned absolutely, the bounds are defined relative to the top left at 0, 0 so our transformations are
-        // correct from DOM to local bounds
-        domElement.style.position = 'fixed'; // helps move container elements out of the way, doesn't seem to interfere
-        domElement.style.top = '0px';
-        domElement.style.left = '0px';
-        domElement.style.padding = '0px';
-        domElement.style.transformOrigin = 'left top';
-
-        // so that client width/height are exact
-        domElement.style.borderWidth = '0';
-
-        // so that text content can be positioned exactly without any margins
-        domElement.style.margin = '0';
-
-        // doesn't really impact behavior but looks a little nicer?
-        domElement.style.whiteSpace = 'nowrap';
-
-        // This attribute is absolutely critical because it prevents the PDOM from interfering with the rest of the
-        // scenery pointer input. To not remove unless you want to re-implement scenery input.
-        domElement.style.pointerEvents = 'none';
-
-        // Small enough to be esentially invisible, but at least 1px or else VO doesn't read anything
-        domElement.style.fontSize = '1px';
-
-        domElement.style.color = 'white';
-
-        // so that elements can never be seen visually, can comment this out to "see" transformed elements in the PDOM
-        // text and backgrounds of elements are made transparent where possible, and opacity takes care of the rest
-        // for things like radio buttons, check boxes, and others where color doesn't change element visuals
-        // domElement.style.color = 'Transparent';
-        // domElement.style.backgroundColor = 'Transparent';
-        // domElement.style.opacity = '0.0001';
-        // this.labelSibling.style.overflow = 'hidden';
+        // other styling will be added with the SceneryStyle above
+        domElement.className = 'pdomElement';
       }
       else {
 
@@ -531,22 +535,8 @@ define( function( require ) {
      * @param {HTMLElement}
      */
     hideElement: function( element ) {
-      // element.style.transform = HIDING_MATRIX_CSS;
-      // element.style.position = 'static';
-
-      // element.style.position = 'absolute';
       element.style.left = '-9999px';
       element.style.top = '-9999px';
-
-      // so text does not extend into the display
-      // element.style.display = 'inline-block';
-      // element.style.overflow = 'hidden';
-      // element.style.width = '250px';
-      // element.style.visibility = 'hidden';
-      // element.style.fontSize = '1px'; // at least 1 px or else VO skips over things
-
-      // element.style.wordWrap = 'break-word';
-
     },
 
     TAGS: {

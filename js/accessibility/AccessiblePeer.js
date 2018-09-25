@@ -170,9 +170,6 @@ define( function( require ) {
 
           // root is relatively styled so that descendants can be positioned absolutely
           this._primarySibling.style.position = 'relative';
-
-          // TODO: another way to make sure that DOM is on top of display? Is this critical?
-          // this._primarySibling.style.zIndex = '10000';
         }
 
         return this;
@@ -978,9 +975,9 @@ define( function( require ) {
             // If there is a label sibling, it needs to be transformed as well because VoiceOver will include its
             // bounding rectangle in its calculation to determine where to send the fake pointer event after a click
             // gesture. However, if the label overlaps the focusable element, the element becomes un-touchable with
-            // VO touch navigation. So we add a scale and translation to make the label sibling tiny and shift it out
-            // of the way. This is a workaround, but other CSS attributes like zIndex, visibility, hidden, and other
-            // things haven't been able to get this to work otherwise.
+            // VO touch navigation. So we add an extra transform to shift the label out of the way This is a workaround,
+            // but other CSS attributes like zIndex, visibility, hidden, and other things haven't been able to get this
+            // to work otherwise.
             var labelBounds = getClientBounds( this.labelSibling );
             var labelWidth = labelBounds.width;
             var labelHeight = labelBounds.height;
