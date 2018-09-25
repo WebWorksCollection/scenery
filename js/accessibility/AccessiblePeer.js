@@ -937,10 +937,7 @@ define( function( require ) {
             siblingScratchBounds.transform( primaryMatrix );
 
             // apply CSS
-            this.primarySibling.style.top = siblingScratchBounds.top + 'px';
-            this.primarySibling.style.left = siblingScratchBounds.left + 'px';
-            this.primarySibling.style.width = siblingScratchBounds.width + 'px';
-            this.primarySibling.style.height = siblingScratchBounds.height + 'px';
+            setClientBounds( this.primarySibling, siblingScratchBounds );
           }
 
           if ( this.labelSibling ) {
@@ -967,10 +964,7 @@ define( function( require ) {
               siblingScratchBounds.transform( labelMatrix );
 
               // apply CSS
-              this.labelSibling.style.top = siblingScratchBounds.top + 'px';
-              this.labelSibling.style.left = siblingScratchBounds.left + 'px';
-              this.labelSibling.style.width = siblingScratchBounds.width + 'px';
-              this.labelSibling.style.height = siblingScratchBounds.height + 'px';
+              setClientBounds( this.labelSibling, siblingScratchBounds );
             }
           }
         }
@@ -1078,6 +1072,20 @@ define( function( require ) {
 
     // combine these two in a single transformation matrix
     return globalNodeTranslationMatrix.multiplyMatrix( globalToClientScaleMatrix ).multiplyMatrix( nodeScaleMagnitudeMatrix );
+  }
+
+  /**
+   * Set the bounds of the sibling element in the view port in pixels, using top, left, width, and height css.
+   * The element must be styled with 'position: fixed', and an ancestor must have position: 'relative', so that
+   * the dimensions of the sibling are relative to the parent.
+   * @param {HTMLElement} siblingElement - the element to position
+   * @param {Bounds2} bounds - desired bounds, in pixels
+   */
+  function setClientBounds( siblingElement, bounds ) {
+    siblingElement.style.top = bounds.top + 'px';
+    siblingElement.style.left = bounds.left + 'px';
+    siblingElement.style.width = bounds.width + 'px';
+    siblingElement.style.height = bounds.height + 'px';
   }
 
   return AccessiblePeer;
