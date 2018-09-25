@@ -477,9 +477,9 @@ define( function( require ) {
 
       if ( this._accessible && this._mobileA11yTest ) {
 
-        // Update any out of date CSS transforms for AccessiblePeer content - for now only doing this while exploring
+        // Update any out of date CSS positioning for AccessiblePeer siblings - for now only doing this while exploring
         // a solution for a11y on mobile devices
-        AccessibilityTree.updateDirtyCSSTransforms( this._rootAccessibleInstance ); 
+        AccessibilityTree.updateDirtyPositioning( this._rootAccessibleInstance ); 
       }
 
       this._frameId++;

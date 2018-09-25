@@ -116,16 +116,12 @@ define( function( require ) {
       this._primaryObserver = null;
 
       // @private - flag that indicates that this peer has accessible content that changed and so the element
-      // transforms need to be updated in the next animation frame
-      this.transformDirty = false;
+      // needs to be repositioned in the next animation frame
+      this.positionDirty = false;
 
-      // @private - flag that this peer has an AccessibleInstance with some descendant with a dirty transform that
+      // @private - flag that this peer has an AccessibleInstance with some descendant with out of date positioning that
       // needs to be updated in the next animation frame
-      this.descendantTransformDirty = false;
-
-      // @private - the matrix that transforms the HTML sibling elements to the local coordinate frame of this peer's
-      // node, identity until the sibling has client bounds
-      this.domToLocalMatrix = Matrix3.IDENTITY;
+      this.descendantPositionDirty = false;
 
       // @private - the difference between the nodes along this trail and the nodes of the parent accessible instance's
       // trail, including this node - populated in update
@@ -192,12 +188,12 @@ define( function( require ) {
 
         // there is no need to iterate over the entire list of mutations because a single mutation is all that is
         // required to mark dirty for the next Display.updateDisplay
-        self.invalidateCSSTransforms();
+        self.invalidateCSSPositioning();
       } );
 
       // @private - must be removed on disposal
       this.transformListener = this.transformListener || function() {
-        self.invalidateCSSTransforms();
+        self.invalidateCSSPositioning();
       };
       this.transformTracker.addListener( this.transformListener );
 
@@ -797,8 +793,8 @@ define( function( require ) {
         }
 
         // invalidate CSS transforms because when 'hidden' the content will have no dimensions in the viewport, see 
-        // updateCSSTransforms
-        this.invalidateCSSTransforms();
+        // positionElements
+        this.invalidateCSSPositioning();
       }
     },
 
@@ -890,26 +886,42 @@ define( function( require ) {
      * 
      * @private
      */
-    invalidateCSSTransforms: function() {
-      if ( !this.transformDirty ) {
+    invalidateCSSPositioning: function() {
+      if ( !this.positionDirty ) {
 
         // mar that this instance needs to be updated
-        this.transformDirty = true;
+        this.positionDirty = true;
 
         // mark all ancestors to indicate that this instance will require an update to CSS transforms, so that we
         // can find this AccessiblePeer in Display.updateDisplay
         var parent = this.accessibleInstance.parent;
         while ( parent ) {
-          parent.peer.descendantTransformDirty = true;
+          parent.peer.descendantPositionDirty = true;
           parent = parent.parent;
         }
       }
     },
 
     /**
-     * Update the CSS transform of the primary element.
+     * Update the CSS positioning of the primary and label siblings. This is important for supporting accessibility on
+     * mobile devices. Some AT will send fake pointer events to the browser at the center of the client bounding
+     * rectangle of the HTML element. A transformation matrix is calculated that will transform the position and
+     * dimension of the HTML element in pixels to the global coordinate frame. This matrix is used to transform bounds
+     * of the HTML element (before any other transforms). The transformed bounds are used to set the left, top, width,
+     * and height of the element with CSS attributes.
+     * 
+     * Initially, we tried to set the CSS transformations on elements directly through the transform attribute. While
+     * this worked for basic input, the VoiceOver feature of tapping the screen to focus elements did not work because
+     * the VoiceOver "touch area" for this was a small box around the top left corner of the element. It is not clear
+     * why this is the case.
+     *
+     * See AccessibilityUtil SceneryStyle for the rest of the CSS attributes that are used for positioning elements
+     * on top of the scenery Display correctly, and without impacting the rest of scenery input. Notes were taken in
+     * https://github.com/phetsims/scenery/issues/852, see that issue for additional information.
+     * 
+     * @public (scenery-internal)
      */
-    updateCSSTransforms: function() {
+    positionElements: function() {
       assert && assert( window.phet && phet.chipper.queryParameters.mobileA11yTest, 'should only be hit when testing' );
       assert && assert( this.primarySibling, 'a primary sibling should be defined to receive a transform' );
 
@@ -1032,27 +1044,9 @@ define( function( require ) {
   //--------------------------------------------------------------------------
 
   /**
-   * Gets an object with the width and height of an HTML element in pixels, prior to any scaling. clientWidth and
-   * clientHeight are zero for elements with inline layout and elemetns without CSS. For those elements we fall back
-   * to the boundingClientRect, which at that point will describe the dimensions of the element prior to scaling.
+   * Get a matrix that can be used as the CSS transform for elements in the DOM. This matrix will an HTML element
+   * dimensions in pixels to the global coordinate frame.
    * 
-   * @param  {HTMLElement} siblingElement
-   * @return {Object} - Returns an object with two entries, { width: {number}, height: {number} }
-   */
-  function getClientBounds( siblingElement ) {
-    var clientWidth = siblingElement.clientWidth;
-    var clientHeight = siblingElement.clientHeight;
-
-    if ( clientWidth === 0 && clientHeight === 0 ) {
-      clientWidth = siblingElement.getBoundingClientRect().width;
-      clientHeight = siblingElement.getBoundingClientRect().height;
-    }
-
-    return { width: clientWidth, height: clientHeight };
-  }
-
-  /**
-   * Get a matrix that can be used as the CSS transform for elements in the DOM.
    * @param  {HTMLElement} element - the element to receive the CSS transform
    * @param  {number} clientWidth - width of the element to transform in pixels
    * @param  {number} clientHeight - height of the element to transform in pixels
@@ -1076,9 +1070,30 @@ define( function( require ) {
   }
 
   /**
+   * Gets an object with the width and height of an HTML element in pixels, prior to any scaling. clientWidth and
+   * clientHeight are zero for elements with inline layout and elemetns without CSS. For those elements we fall back
+   * to the boundingClientRect, which at that point will describe the dimensions of the element prior to scaling.
+   * 
+   * @param  {HTMLElement} siblingElement
+   * @return {Object} - Returns an object with two entries, { width: {number}, height: {number} }
+   */
+  function getClientBounds( siblingElement ) {
+    var clientWidth = siblingElement.clientWidth;
+    var clientHeight = siblingElement.clientHeight;
+
+    if ( clientWidth === 0 && clientHeight === 0 ) {
+      clientWidth = siblingElement.getBoundingClientRect().width;
+      clientHeight = siblingElement.getBoundingClientRect().height;
+    }
+
+    return { width: clientWidth, height: clientHeight };
+  }
+
+  /**
    * Set the bounds of the sibling element in the view port in pixels, using top, left, width, and height css.
    * The element must be styled with 'position: fixed', and an ancestor must have position: 'relative', so that
    * the dimensions of the sibling are relative to the parent.
+   * 
    * @param {HTMLElement} siblingElement - the element to position
    * @param {Bounds2} bounds - desired bounds, in pixels
    */

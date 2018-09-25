@@ -392,54 +392,53 @@ define( function( require ) {
     },
 
     /**
-     * Update CSS transforms for elements in the PDOM. Does a depth first search for all descendants of rootInstance
-     * with a peer that has descendantTransformDirty until it finds the descendant marked with transformDirty. Once
-     * it finds this peer, it will update the CSS transforms for AccessiblePeer elements on that AccessibleInstance
-     * and all of its descendants (in that order because parents need to be updated before children due to the
-     * computation of the matrix that transforms DOM to the local node coordinate frame).
+     * Update CSS positioning for elements in the PDOM. Does a depth first search for all descendants of rootInstance
+     * with a peer that has descendantPositionDirty until it finds the descendant marked with positionDirty. Once
+     * it finds this peer, it will update the CSS positioning for AccessiblePeer elements on that AccessibleInstance
+     * and all of its descendants.
      *
      * @param {} rootInstance - root AccessibleInstance, we will search down this subtree
      */
-    updateDirtyCSSTransforms: function( rootInstance ) {
+    updateDirtyPositioning: function( rootInstance ) {
 
       // no need to continue searching down this sub tree after this traversal
-      rootInstance.peer.descendantTransformDirty = false;
+      rootInstance.peer.descendantPositionDirty = false;
 
-      if ( rootInstance.peer.transformDirty ) {
-        AccessibilityTree.updateCSSTransformsForSubTree( rootInstance );
+      if ( rootInstance.peer.positionDirty ) {
+        AccessibilityTree.positionElementsUnderSubtree( rootInstance );
       }
       else {
         for ( var i = 0; i < rootInstance.children.length; i++ ) {
           var childPeer = rootInstance.children[ i ].peer;
-          if ( childPeer.transformDirty || childPeer.descendantTransformDirty ) {
-            AccessibilityTree.updateDirtyCSSTransforms( rootInstance.children[ i ] );
+          if ( childPeer.positionDirty || childPeer.descendantPositionDirty ) {
+            AccessibilityTree.updateDirtyPositioning( rootInstance.children[ i ] );
           }
         }
       }
     },
 
     /**
-     * Update the CSS transforms for the AccessiblePeer's primarySibling of all descendant AccessibleInstances.
+     * Update the CSS positioning for the AccessiblePeer's primarySibling of all descendant AccessibleInstances.
      * 
-     * @param {AccessibleInstance} rootInstance - root of the subtree whose transforms we are going to update
+     * @param {AccessibleInstance} rootInstance - root of the subtree whose elements we are going to update
      * @private (scenery-internal)
      */
-    updateCSSTransformsForSubTree: function( rootInstance ) {
+    positionElementsUnderSubtree: function( rootInstance ) {
       
       // for now, this should only ever be called experimentally, see https://github.com/phetsims/scenery/issues/852
       assert && assert( window.phet && window.phet.chipper.queryParameters.mobileA11yTest, 'this should be hidden behind mobileA11yTest query parameter' );
 
       // no longer dirty for next time
-      rootInstance.peer.transformDirty = false;
+      rootInstance.peer.positionDirty = false;
 
-      // we are going to update every transform down this subtree, no need to search down this subtree at all
-      rootInstance.peer.descendantTransformDirty = false;
+      // we are going to update position of all elements down this subtree, no need to search down this subtree at all
+      rootInstance.peer.descendantPositionDirty = false;
 
-      rootInstance.peer.updateCSSTransforms();
+      rootInstance.peer.positionElements();
 
       // now apply to all instance in the subtree (depth-first)
       for ( var i = 0; i < rootInstance.children.length; i++ ) {
-        AccessibilityTree.updateCSSTransformsForSubTree( rootInstance.children[ i ] );
+        AccessibilityTree.positionElementsUnderSubtree( rootInstance.children[ i ] );
       }
     },
 
