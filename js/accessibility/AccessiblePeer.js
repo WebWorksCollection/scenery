@@ -12,6 +12,7 @@ define( function( require ) {
   'use strict';
 
   var AccessibilityUtil = require( 'SCENERY/accessibility/AccessibilityUtil' );
+  var Bounds2 = require( 'DOT/Bounds2' );
   var Events = require( 'AXON/Events' );
   var Focus = require( 'SCENERY/accessibility/Focus' );
   var inherit = require( 'PHET_CORE/inherit' );
@@ -44,6 +45,9 @@ define( function( require ) {
   var globalNodeTranslationMatrix = new Matrix3();
   var globalToClientScaleMatrix = new Matrix3();
   var nodeScaleMagnitudeMatrix = new Matrix3();
+
+  // will become
+  var siblingScratchBounds = new Bounds2( 0, 0, 0, 0 );
 
   /**
    * @param {AccessibleInstance} accessibleInstance
@@ -955,8 +959,18 @@ define( function( require ) {
           var primaryHeight = primaryBounds.height;
 
           if ( primaryWidth > 0 && primaryHeight > 0 ) {
+            siblingScratchBounds.setMinMax( 0, 0, primaryWidth, primaryHeight );
+            
+            // calculate the matrix that would transform the sibling into the global coordinate frame, and set as bounds
+            // so that we can use it to set the dimensions with css
             var primaryMatrix = getCSSMatrix( this.primarySibling, primaryWidth, primaryHeight, globalBounds, nodeScaleVector );
-            this.primarySibling.style.transform = primaryMatrix.getCSSTransform();
+            siblingScratchBounds.transform( primaryMatrix );
+
+            // apply CSS
+            this.primarySibling.style.top = siblingScratchBounds.top + 'px';
+            this.primarySibling.style.left = siblingScratchBounds.left + 'px';
+            this.primarySibling.style.width = siblingScratchBounds.width + 'px';
+            this.primarySibling.style.height = siblingScratchBounds.height + 'px';
           }
 
           if ( this.labelSibling ) {
@@ -964,19 +978,29 @@ define( function( require ) {
             // If there is a label sibling, it needs to be transformed as well because VoiceOver will include its
             // bounding rectangle in its calculation to determine where to send the fake pointer event after a click
             // gesture. However, if the label overlaps the focusable element, the element becomes un-touchable with
-            // VO touch navigation. So we add a scale and translation to the label sibling to shift it out of the way.
-            // This is a workaround, but other CSS attributes like zIndex, visibility, hidden, and other things haven't
-            // been able to get this to work otherwise.
+            // VO touch navigation. So we add a scale and translation to make the label sibling tiny and shift it out
+            // of the way. This is a workaround, but other CSS attributes like zIndex, visibility, hidden, and other
+            // things haven't been able to get this to work otherwise.
             var labelBounds = getClientBounds( this.labelSibling );
             var labelWidth = labelBounds.width;
             var labelHeight = labelBounds.height;
 
             if ( labelHeight > 0 && labelWidth > 0 ) {
-              var labelMatrix = getCSSMatrix( this.labelSibling, labelWidth, labelHeight, globalBounds, nodeScaleVector );
 
+              // calculate the matrix that would transform the label and shift it out of the way
+              var labelMatrix = getCSSMatrix( this.labelSibling, labelWidth, labelHeight, globalBounds, nodeScaleVector );
               labelTranslationMatrix.setToTranslation( labelWidth / 2, labelHeight );
               labelMatrix.multiplyMatrix( labelTranslationMatrix ).multiplyMatrix( LABEL_SCALING_MATRIX );
-              this.labelSibling.style.transform = labelMatrix.getCSSTransform();
+
+              // transform scratch bounds that will position the element
+              siblingScratchBounds.setMinMax( 0, 0, labelWidth, labelHeight );
+              siblingScratchBounds.transform( labelMatrix );
+
+              // apply CSS
+              this.labelSibling.style.top = siblingScratchBounds.top + 'px';
+              this.labelSibling.style.left = siblingScratchBounds.left + 'px';
+              this.labelSibling.style.width = siblingScratchBounds.width + 'px';
+              this.labelSibling.style.height = siblingScratchBounds.height + 'px';
             }
           }
         }

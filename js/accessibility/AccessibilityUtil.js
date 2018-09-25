@@ -468,7 +468,7 @@ define( function( require ) {
                        : document.createElement( tagName );
 
       // TODO: I would have to have a different solution for IE11, is this still necessary?
-      // domElement.tabIndex = focusable ? 0 : -1;
+      domElement.tabIndex = focusable ? 0 : -1;
 
       // if transforming the PDOM elements for mobile a11y support, add style attributes to support the transform
       // attribute
@@ -496,12 +496,18 @@ define( function( require ) {
         // scenery pointer input. To not remove unless you want to re-implement scenery input.
         domElement.style.pointerEvents = 'none';
 
+        // Small enough to be esentially invisible, but at least 1px or else VO doesn't read anything
+        domElement.style.fontSize = '1px';
+
+        domElement.style.color = 'white';
+
         // so that elements can never be seen visually, can comment this out to "see" transformed elements in the PDOM
         // text and backgrounds of elements are made transparent where possible, and opacity takes care of the rest
         // for things like radio buttons, check boxes, and others where color doesn't change element visuals
-        domElement.style.color = 'Transparent';
-        domElement.style.backgroundColor = 'Transparent';
-        domElement.style.opacity = '0.0001';
+        // domElement.style.color = 'Transparent';
+        // domElement.style.backgroundColor = 'Transparent';
+        // domElement.style.opacity = '0.0001';
+        // this.labelSibling.style.overflow = 'hidden';
       }
       else {
 
