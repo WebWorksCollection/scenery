@@ -207,9 +207,6 @@ define( function( require ) {
       this._descriptionSibling = null;
       this._containerParent = null;
 
-      // REVIEW: Why is this a separate function call? It's never called to "update" things.
-      this.update();
-
       return this;
     },
 
