@@ -13,7 +13,6 @@ define( function( require ) {
 
   var AccessibilityUtil = require( 'SCENERY/accessibility/AccessibilityUtil' );
   var Bounds2 = require( 'DOT/Bounds2' );
-  var Events = require( 'AXON/Events' );
   var Focus = require( 'SCENERY/accessibility/Focus' );
   var inherit = require( 'PHET_CORE/inherit' );
   var Matrix3 = require( 'DOT/Matrix3' );
@@ -60,8 +59,7 @@ define( function( require ) {
 
   scenery.register( 'AccessiblePeer', AccessiblePeer );
 
-  // REVIEW: I don't actually see any usage of the Events part of AccessiblePeer. Can we remove that now?
-  inherit( Events, AccessiblePeer, {
+  inherit( Object, AccessiblePeer, {
 
     /**
      * Initializes the object (either from a freshly-created state, or from a "disposed" state brought back from a
@@ -77,8 +75,6 @@ define( function( require ) {
         primarySibling: null // {HTMLElement|null} primarySibling - The main DOM element used for this peer
       }, options );
 
-      Events.call( this ); // TODO: is Events worth mixing in by default? Will we need to listen to events?
-
       assert && assert( !this.id || this.disposed, 'If we previously existed, we need to have been disposed' );
 
       // @public {number} - unique ID
@@ -87,7 +83,7 @@ define( function( require ) {
       // @public {AccessibleInstance}
       this.accessibleInstance = accessibleInstance;
 
-      // @public {Node} REVIEW: This is {null} for the root peer, correct?
+      // @public {Node|null} only null for the root accessibleInstance
       this.node = this.accessibleInstance.node;
 
       // @public {Display} - Each peer is associated with a specific Display.
@@ -177,6 +173,8 @@ define( function( require ) {
 
       //REVIEW: Why doesn't this need to be done for "root" peers where the primarySibling is passed in? Seems like
       //REVIEW: it would still be needed.
+      //ZEPUMPH: Since the root doesn't have a node, it couldn't have a container or sibling elements, so this all isn't
+      //ZEPUMPH: needed I think.
       // for each accessible peer, clear the container parent if it exists since we will be reinserting labels and
       // the dom element in createPeer
       while ( this._containerParent && this._containerParent.hasChildNodes() ) {
@@ -247,11 +245,19 @@ define( function( require ) {
       // REVIEW: Ideally the order is "what is best", and hopefully the defaults (with normal usage) would not run into
       // REVIEW: this. But think about what may happen in the future (all settings), and about all the potential ways
       // REVIEW: we would want to overwrite behaviors.
+      //ZEPUMPH: These were developed as two fully separate apis, not ever to be used together in their default form.
+      //ZEPUMPH: I'm not sure how best to document that though. From a use case perspective, you either have a heading,
+      //ZEPUMPH: Or an accessibleName.
+
+      //ZEPUMPH: This is something JG and I have discussed quite a bit. On one hand these options are all so complicated
+      //ZEPUMPH: and hard to fully understand everything (lower level api), on the other, when we try to create higher level
+      //ZEPUMPH: abstractions, there will be conflicts with each other.
       // REVIEW:
       // REVIEW: As a generalization, how would we handle "arbitrary" behaviors that don't depend on one parameter?
       // REVIEW: What if there was a "pipeline" of behaviors that the client could insert general things into?
       // REVIEW: It's probably overkill and just brainstorming but if you have this._behaviors = [ b1, b2, b3 ],
       // REVIEW: then options = b3( node, b2( node, b1( node, options ) ) )?
+      //ZEPUMPH: Intereseting! Let's talk about this on Friday
       if ( this.node.accessibleName !== null ) {
         options = this.node.accessibleNameBehavior( this.node, options, this.node.accessibleName );
       }
@@ -268,52 +274,34 @@ define( function( require ) {
       // create the base DOM element representing this accessible instance
       //REVIEW: Do we want to check options.focusable instead? Should no accessibleNameBehavior/helpTextBehavior be
       //REVIEW: able to modify whether something is focusable?
-      var primarySibling = AccessibilityUtil.createElement( options.tagName, this.node.focusable, {
+      //ZEPUMPH: I think we need to have a larger discussion about what behavior functions' role should be, I totally
+      //ZEPUMPH: understand your thought here.
+      this._primarySibling = AccessibilityUtil.createElement( options.tagName, this.node.focusable, {
         namespace: options.accessibleNamespace
       } );
-      primarySibling.id = uniqueId;
+      this._primarySibling.id = uniqueId;
 
       // create the container parent for the dom siblings
-      var containerParent = null;
       if ( options.containerTagName ) {
-        containerParent = AccessibilityUtil.createElement( options.containerTagName, false );
-        containerParent.id = 'container-' + uniqueId;
-
-        // provide the aria-role if it is specified
-        // REVIEW: What happens when this is set after the containerTagName? Also setContainerAriaRole seems to do work
-        // REVIEW: with removeAccessibleAttribute/setAccessibleAttribute. Does handling it as an accessible attribute not
-        // REVIEW: apply here?
-        // REVIEW: After further review, I don't see why this is needed. Doesn't the onAttributeChange call below update
-        // REVIEW: this? Why the special case here?
-        if ( options.containerAriaRole ) {
-          containerParent.setAttribute( 'role', options.containerAriaRole );
-        }
+        this._containerParent = AccessibilityUtil.createElement( options.containerTagName, false );
+        this._containerParent.id = 'container-' + uniqueId;
       }
 
       // create the label DOM element representing this instance
-      var labelSibling = null;
       if ( options.labelTagName ) {
-        labelSibling = AccessibilityUtil.createElement( options.labelTagName, false );
-        labelSibling.id = 'label-' + uniqueId;
+        this._labelSibling = AccessibilityUtil.createElement( options.labelTagName, false );
+        this._labelSibling.id = 'label-' + uniqueId;
       }
 
       // create the description DOM element representing this instance
-      var descriptionSibling = null;
       if ( options.descriptionTagName ) {
-        descriptionSibling = AccessibilityUtil.createElement( options.descriptionTagName, false );
-        descriptionSibling.id = 'description-' + uniqueId;
+        this._descriptionSibling = AccessibilityUtil.createElement( options.descriptionTagName, false );
+        this._descriptionSibling.id = 'description-' + uniqueId;
 
         // descriptions are just pushed off screen, only inputs are required to be transformed
         // TODO: factor this out
-        AccessibilityUtil.hideElement( descriptionSibling );
+        AccessibilityUtil.hideElement( this._descriptionSibling );
       }
-
-      // assign elements
-      // REVIEW: These could potentially just be set above where the values are known? Why is the assignment delayed?
-      this._primarySibling = primarySibling;
-      this._labelSibling = labelSibling;
-      this._descriptionSibling = descriptionSibling;
-      this._containerParent = containerParent;
 
       this.orderElements( options );
 
@@ -348,6 +336,7 @@ define( function( require ) {
       // if element is an input element, set input type
       if ( options.tagName.toUpperCase() === INPUT_TAG && options.inputType ) {
         // REVIEW: This looks like something that should be a behavior?
+        //ZEPUMPH: I'm not sure I understand
         this.setAttributeToElement( 'type', options.inputType );
       }
 
@@ -367,26 +356,13 @@ define( function( require ) {
       // REVIEW: Upon further review, this totally seems like the case (since it's already being kinda done for aria-label).
       // REVIEW: Can the accessible attributes be included with the "options" object, and can behaviors adjust them as
       // REVIEW: they see fit?
+      //ZEPUMPH: TODO: Let's talk about this more as part of https://github.com/phetsims/scenery/issues/867
+
       this.onAttributeChange( options );
 
       // update input value attribute for the peer
       this.onInputValueChange();
 
-      // Default the focus highlight in this special case to be invisible until selected.
-      if ( this.node.focusHighlightLayerable ) {
-
-        // if focus highlight is layerable, it must be a node in the scene graph
-        assert && assert( this.node.focusHighlight instanceof scenery.Node );
-
-        // REVIEW: Wait, why are we changing something assigned to the node here? Do we control this focus highlight now?
-        this.node.focusHighlight.visible = false;
-      }
-
-      // TODO: this is hacky, because updateOtherNodes functions could try to access this peer from their accessibleInstance.
-      // REVIEW: What if, instead of calling update() from inside AccessiblePeer (in the initialization), it was called
-      // REVIEW: in AccessibleInstance after `this.peer = AccessiblePeer.createFromPool( ... )` happens? Then this
-      // REVIEW: field would already be set, and we wouldn't need the workaround here?
-      this.accessibleInstance.peer = this;
       this.node.updateOtherNodesAriaLabelledby();
       this.node.updateOtherNodesAriaDescribedby();
     },
