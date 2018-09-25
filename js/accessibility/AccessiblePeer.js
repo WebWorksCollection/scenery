@@ -123,30 +123,6 @@ define( function( require ) {
       // needs to be updated in the next animation frame
       this.descendantPositionDirty = false;
 
-      // @private - the difference between the nodes along this trail and the nodes of the parent accessible instance's
-      // trail, including this node - populated in update
-      this.visibleNodesToAccessibleParent = [];
-
-      // @private - the trail to the visual instance since due to 
-      this.visualTrail = this.accessibleInstance.guessVisualTrail();
-
-      // walk up the visual trail, trying to find the ancestor accessible instance along the visual trail (not
-      // necessarily the accessible instance parent)
-      this.visibleNodesToAccessibleParent.push( this.node );
-      for ( var i = this.visualTrail.length - 2; i >= 0; i-- ) {
-        var visualParent = this.visualTrail.get( i );
-
-        // ancestor needs to come first in the array, so we add these to front
-        if ( !visualParent.tagName ) {
-          this.visibleNodesToAccessibleParent.unshift( visualParent );
-        }
-        else {
-
-          // we found the parent instance along the visual trail so we can break without adding it to the array
-          break;
-        }
-      }
-
       // @private {boolean} - Whether we are currently in a "disposed" (in the pool) state, or are available to be
       // interacted with.
       this.disposed = false;
