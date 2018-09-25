@@ -33,7 +33,8 @@ define( function( require ) {
   var INPUT_TAG = AccessibilityUtil.TAGS.INPUT;
 
   // constants
-  // DOM observers that apply new css transformations are triggered when children, attributes, or inner content change
+  // DOM observers that apply new css transformations are triggered when children, or inner content change, updating
+  // positioning the element will change attributes so we don't want to observe those changes
   var OBSERVER_CONFIG = { attributes: false, childList: true, characterData: true };
 
   // matrices reused in calculations
