@@ -18,6 +18,7 @@ define( function( require ) {
   var BooleanProperty = require( 'AXON/BooleanProperty' );
   var Emitter = require( 'AXON/Emitter' );
   var EmitterIO = require( 'AXON/EmitterIO' );
+  var DerivedProperty = require( 'AXON/DerivedProperty' );
   var inherit = require( 'PHET_CORE/inherit' );
   var Mouse = require( 'SCENERY/input/Mouse' );
   var EventIO = require( 'SCENERY/input/EventIO' );
@@ -185,9 +186,6 @@ define( function( require ) {
     this._fireOnHoldInterval = options.fireOnHoldInterval; // used for a11y
     this._onAccessibleClick = options.onAccessibleClick; // used for a11y
 
-    // @private {boolean} - marks that the accessibility click listener is currently firing.
-    this._a11yClickInProgress = false;
-
     // @private {boolean} - Whether our pointer listener is referenced by the pointer (need to have a flag due to
     //                      handling disposal properly).
     this._listeningToPointer = false;
@@ -202,6 +200,12 @@ define( function( require ) {
 
     // @public (read-only) {BooleanProperty} - Whether or not a press is being processed from an a11y click input event.
     this.a11yClickingProperty = new BooleanProperty( false );
+
+    // @public (read-only) {BooleanProperty} - This Property was added for a11y. It tracks whether or not the button
+    // should "look" down. This will be true if downProperty is true or if an a11y click is in progress. For an a11y
+    // click, the listeners are fired right away but the button will look down for as long as fireOnHoldInterval.
+    // See PressListener.click() for more details.
+    this.looksPressedProperty = DerivedProperty.or( [ this.a11yClickingProperty, this.isPressedProperty ] );
 
     // @private {Object} - The listener that gets added to the pointer when we are pressed
     this._pointerListener = {
@@ -557,7 +561,7 @@ define( function( require ) {
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
       // REVIEW: Why can't we interrupt an a11y click? That sounds very buggy!
-      if ( this.isPressed && !this._a11yClickInProgress ) {
+      if ( this.isPressed ) {
         sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'PressListener#' + this._id + ' interrupting' );
         this.interrupted = true;
 
@@ -614,9 +618,6 @@ define( function( require ) {
     click: function() {
       if ( this.canClick() ) {
 
-        // TODO: This can be deleted right? see https://github.com/phetsims/scenery/issues/831
-        this._a11yClickInProgress = true;
-
         this.a11yClickingProperty.value = true;
 
         // ensure that button is 'over' so listener can be called while button is down
@@ -628,8 +629,6 @@ define( function( require ) {
 
         // call the a11y click specific listener
         this._onAccessibleClick && this._onAccessibleClick();
-
-        this._a11yClickInProgress = false;
 
         var self = this;
         timer.setTimeout( function() {
@@ -678,6 +677,8 @@ define( function( require ) {
       }
       !this.isHoveringProperty.isDisposed && this.isHoveringProperty.unlink( this._isHighlightedListener );
 
+      this.a11yClickingProperty.dispose();
+      this.looksPressedProperty.dispose();
 
       this._pressedEmitter.dispose();
       this._releasedEmitter.dispose();
