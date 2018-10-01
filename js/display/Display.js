@@ -282,6 +282,10 @@ define( function( require ) {
       // whether or not we are testing mobile a11y support by transforming elements in the PDOM
       this._mobileA11yTest = ( window.phet && phet.chipper.queryParameters.mobileA11yTest );
 
+      // @private {number} - how much time has elapsed since the last time we updated positioning of PDOM elements.
+      // Doing this every position update is too expensive, so we do it every interval instead.
+      this._a11yTimeSincePositionUpdate = 0;
+
       // make the PDOM invisible in the browser - it has some width and is shifted off screen so that AT can read the
       // formatting tags, see https://github.com/phetsims/scenery/issues/730
       // We do not want to hide the PDOM in this way for mobile a11y, once that is integrated full, this can be removed
@@ -477,9 +481,19 @@ define( function( require ) {
 
       if ( this._accessible && this._mobileA11yTest ) {
 
-        // Update any out of date CSS positioning for AccessiblePeer siblings - for now only doing this while exploring
-        // a solution for a11y on mobile devices
-        AccessibilityTree.updateDirtyPositioning( this._rootAccessibleInstance ); 
+        // calculate how much time has elapsed since the last time we updated dirty positioning - doing this every
+        // update is far too expensive on some platforms, but we only need to do it ocassionally
+        var timeNow = new Date().getTime();
+        var timeSinceUpdate = timeNow - this._a11yTimeSincePositionUpdate;
+
+
+        if ( timeSinceUpdate > 5000 ) {
+
+          // Update any out of date CSS positioning for AccessiblePeer siblings - for now only doing this while exploring
+          // a solution for a11y on mobile devices
+          AccessibilityTree.updateDirtyPositioning( this._rootAccessibleInstance );
+          this._a11yTimeSincePositionUpdate = timeNow;
+        }
       }
 
       this._frameId++;
