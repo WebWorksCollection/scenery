@@ -144,6 +144,7 @@ define( function( require ) {
 
           // root is relatively styled so that descendants can be positioned absolutely
           this._primarySibling.style.position = 'relative';
+          this._primarySibling.style.opacity = '0.0001';
         }
 
         return this;
