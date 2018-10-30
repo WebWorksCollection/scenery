@@ -16,22 +16,20 @@ define( function( require ) {
   'use strict';
 
   var BooleanProperty = require( 'AXON/BooleanProperty' );
+  var DerivedProperty = require( 'AXON/DerivedProperty' );
   var Emitter = require( 'AXON/Emitter' );
   var EmitterIO = require( 'AXON/EmitterIO' );
   var Event = require( 'SCENERY/input/Event' );
-  var DerivedProperty = require( 'AXON/DerivedProperty' );
+  var EventIO = require( 'SCENERY/input/EventIO' );
   var inherit = require( 'PHET_CORE/inherit' );
   var Mouse = require( 'SCENERY/input/Mouse' );
-  var EventIO = require( 'SCENERY/input/EventIO' );
   var Node = require( 'SCENERY/nodes/Node' );
   var ObservableArray = require( 'AXON/ObservableArray' );
   var PhetioObject = require( 'TANDEM/PhetioObject' );
   var scenery = require( 'SCENERY/scenery' );
   var Tandem = require( 'TANDEM/Tandem' );
   var timer = require( 'PHET_CORE/timer' );
-
-  // ifphetio
-  var VoidIO = require( 'ifphetio!PHET_IO/types/VoidIO' );
+  var VoidIO = require( 'TANDEM/types/VoidIO' );
 
   // global
   var globalID = 0;
@@ -215,8 +213,7 @@ define( function( require ) {
 
     // @private {Emitter} - Emitted on press event
     this._pressedEmitter = new Emitter( {
-      valueTypes: [ Event, Node, 'function' ],
-      areTypesOptional: [ false, true, true ],
+      valueTypes: [ Event, v => v === null || v instanceof Node, v => v === null || typeof v === 'function' ],
       tandem: options.tandem.createTandem( 'pressedEmitter' ),
       phetioDocumentation: 'Emits whenever a press occurs. The first argument when emitting can be ' +
                            'used to convey info about the Event.',
@@ -226,17 +223,16 @@ define( function( require ) {
         { name: 'event', type: EventIO },
         { name: 'targetNode', type: VoidIO },
         { name: 'callback', type: VoidIO }
-      ] )
-    } );
+      ] ),
 
-    // The main implementation of "press" handling is implemented as a callback to the emitter, so things are nested
-    // nicely for phet-io.
-    this._pressedEmitter.addListener( this.onPress.bind( this ) );
+      // The main implementation of "press" handling is implemented as a callback to the emitter, so things are nested
+      // nicely for phet-io.
+      listener: this.onPress.bind( this )
+    } );
 
     // @private {Emitter} - Emitted on release event
     this._releasedEmitter = new Emitter( {
-      valueTypes: [ 'function' ],
-      areTypesOptional: [ true ],
+      valueTypes: [ v => v === null || typeof v === 'function' ],
       tandem: options.tandem.createTandem( 'releasedEmitter' ),
       phetioDocumentation: 'Emits whenever a release occurs.',
       phetioReadOnly: options.phetioReadOnly,
@@ -353,7 +349,7 @@ define( function( require ) {
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'PressListener#' + this._id + ' successful press' );
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
-      this._pressedEmitter.emit( event, targetNode, callback );
+      this._pressedEmitter.emit( event, targetNode || null, callback || null ); // cannot pass undefined into emit call
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
 
@@ -375,7 +371,7 @@ define( function( require ) {
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'PressListener#' + this._id + ' release' );
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
-      this._releasedEmitter.emit( callback );
+      this._releasedEmitter.emit( callback || null ); // cannot pass undefined to emit call
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
     },

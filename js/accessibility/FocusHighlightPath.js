@@ -15,6 +15,7 @@ define( function( require ) {
 
   // modules
   var Color = require( 'SCENERY/util/Color' );
+  var Emitter = require( 'AXON/Emitter' );
   var inherit = require( 'PHET_CORE/inherit' );
   var LineStyles = require( 'KITE/util/LineStyles' );
   var Path = require( 'SCENERY/nodes/Path' );
@@ -60,6 +61,7 @@ define( function( require ) {
       outerLineWidth: null,
       innerLineWidth: null,
 
+      // TODO: this could use nested options
       // remaining paintable options applied to both highlights
       lineDash: [],
       lineCap: LineStyles.DEFAULT_OPTIONS.lineCap,
@@ -71,6 +73,9 @@ define( function( require ) {
     // @private {PaintDef}
     this._innerHighlightColor = options.innerStroke;
     this._outerHighlightColor = options.outerStroke;
+
+    // @public - emitted whenever this highlight changes
+    this.highlightChangedEmitter = new Emitter();
 
     Path.call( this, shape );
 
@@ -102,6 +107,26 @@ define( function( require ) {
   return inherit( Path, FocusHighlightPath, {
 
     /**
+     * Mutating convenience function to mutate both the inner highlight also
+     * @public
+     */
+    mutateWithInnerHighlight: function( options ) {
+      Path.prototype.mutate.call( this, options );
+      this.innerHighlightPath && this.innerHighlightPath.mutate( options );
+      this.highlightChangedEmitter.emit();
+    },
+
+    /**
+     * mutate the Path to make the stroke dashed, by using `lineDash`
+     * @public
+     */
+    makeDashed: function() {
+      this.mutateWithInnerHighlight( {
+        lineDash: [ 7, 7 ]
+      } );
+    },
+
+    /**
      * Update the shape of the child path (inner highlight) and this path (outer highlight).
      *
      * @override
@@ -110,6 +135,7 @@ define( function( require ) {
     setShape: function( shape ) {
       Path.prototype.setShape.call( this, shape );
       this.innerHighlightPath && this.innerHighlightPath.setShape( shape );
+      this.highlightChangedEmitter.emit();
     },
 
     /**
@@ -123,6 +149,7 @@ define( function( require ) {
       node = node || this; // update based on node passed in or on self.
       this.lineWidth = this.getOuterLineWidth( node );
       this.innerHighlightPath.lineWidth = this.getInnerLineWidth( node );
+      this.highlightChangedEmitter.emit();
     },
 
     /**
@@ -159,6 +186,7 @@ define( function( require ) {
     setInnerHighlightColor: function( color ) {
       this._innerHighlightColor = color;
       this.innerHighlightPath.setStroke( color );
+      this.highlightChangedEmitter.emit();
     },
     set innerHighlightColor( color ) { this.setInnerHighlightColor( color ); },
 
@@ -181,6 +209,7 @@ define( function( require ) {
     setOuterHighlightColor: function( color ) {
       this._outerHighlightColor = color;
       this.setStroke( color );
+      this.highlightChangedEmitter.emit();
     },
     set outerHighlightColor( color ) { this.setOuterHighlightColor( color ); },
 

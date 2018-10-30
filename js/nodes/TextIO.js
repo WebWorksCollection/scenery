@@ -13,15 +13,15 @@ define( function( require ) {
   var FontIO = require( 'SCENERY/util/FontIO' );
   var NodeIO = require( 'SCENERY/nodes/NodeIO' );
   var NodeProperty = require( 'SCENERY/util/NodeProperty' );
+  var NumberIO = require( 'TANDEM/types/NumberIO' );
+  var phetioInherit = require( 'TANDEM/phetioInherit' );
   var PropertyIO = require( 'AXON/PropertyIO' );
   var scenery = require( 'SCENERY/scenery' );
+  var StringIO = require( 'TANDEM/types/StringIO' );
+  var VoidIO = require( 'TANDEM/types/VoidIO' );
 
   // ifphetio
   var assertInstanceOf = require( 'ifphetio!PHET_IO/assertInstanceOf' );
-  var NumberIO = require( 'ifphetio!PHET_IO/types/NumberIO' );
-  var phetioInherit = require( 'ifphetio!PHET_IO/phetioInherit' );
-  var StringIO = require( 'ifphetio!PHET_IO/types/StringIO' );
-  var VoidIO = require( 'ifphetio!PHET_IO/types/VoidIO' );
 
   /**
    * @param {Text} text

@@ -9,13 +9,13 @@ define( function( require ) {
   'use strict';
 
   // modules
-  const Vector2IO = require( 'DOT/Vector2IO' );
+  const ObjectIO = require( 'TANDEM/types/ObjectIO' );
+  const phetioInherit = require( 'TANDEM/phetioInherit' );
   const scenery = require( 'SCENERY/scenery' );
+  const Vector2IO = require( 'DOT/Vector2IO' );
 
   // ifphetio
   const assertInstanceOf = require( 'ifphetio!PHET_IO/assertInstanceOf' );
-  const ObjectIO = require( 'ifphetio!PHET_IO/types/ObjectIO' );
-  const phetioInherit = require( 'ifphetio!PHET_IO/phetioInherit' );
 
   /**
    * IO type for phet/scenery's Event class.
@@ -30,6 +30,14 @@ define( function( require ) {
 
   phetioInherit( ObjectIO, 'EventIO', EventIO, {}, {
     get documentation() { return 'An event, with a point'; },
+
+    /**
+     * @override
+     * @public
+     * @param {*} instance
+     * @returns {boolean}
+     */
+    isInstance: function( instance ) { return instance instanceof scenery.Event; },
 
     /**
      * Encodes a Color into a state object.

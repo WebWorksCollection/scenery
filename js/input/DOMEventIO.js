@@ -11,12 +11,12 @@ define( require => {
   'use strict';
 
   // modules
-  const ObjectIO = require( 'ifphetio!PHET_IO/types/ObjectIO' );
+  const ObjectIO = require( 'TANDEM/types/ObjectIO' );
+  const phetioInherit = require( 'TANDEM/phetioInherit' );
   const scenery = require( 'SCENERY/scenery' );
 
   // ifphetio
   const assertInstanceOf = require( 'ifphetio!PHET_IO/assertInstanceOf' );
-  const phetioInherit = require( 'ifphetio!PHET_IO/phetioInherit' );
 
   /**
    * IO type for phet/sun's DOMEvent class.
@@ -34,6 +34,15 @@ define( require => {
     documentation: 'A DOM Event',
 
     /**
+     * Note this is a DOM event, not a scenery.Event
+     * @override
+     * @public
+     * @param {*} instance
+     * @returns {boolean}
+     */
+    isInstance: function( instance ) { return instance instanceof window.Event; },
+
+    /**
      * Encodes a DOMEvent instance to a state.
      * @param {Event} domEvent
      * @returns {Object} - a state object
@@ -41,6 +50,14 @@ define( require => {
      */
     toStateObject( domEvent ) {
       return scenery.Input.serializeDomEvent( domEvent );
+    },
+
+    /**
+     * @param {Object} stateObject
+     * @returns {window.Event}
+     */
+    fromStateObject( stateObject ) {
+      return scenery.Input.deserializeDomEvent( stateObject );
     }
   } );
 

@@ -69,9 +69,10 @@ define( function( require ) {
 
   var ARIA_LABELLEDBY = 'aria-labelledby';
   var ARIA_DESCRIBEDBY = 'aria-describedby';
+  var ARIA_ACTIVE_DESCENDANT = 'aria-activedescendant';
 
   // {Array.<String>} attributes that put an ID of another attribute as the value, see https://github.com/phetsims/scenery/issues/819
-  var ASSOCIATION_ATTRIBUTES = [ ARIA_LABELLEDBY, ARIA_DESCRIBEDBY ];
+  var ASSOCIATION_ATTRIBUTES = [ ARIA_LABELLEDBY, ARIA_DESCRIBEDBY, ARIA_ACTIVE_DESCENDANT ];
 
   // All elements that use AccessibilityUtil.createElement will have this style. Additional notes about attributes that
   // should not be used:
@@ -191,6 +192,10 @@ define( function( require ) {
    * @return {boolean}
    */
   function isElementFocusable( domElement ) {
+
+    if ( !document.body.contains( domElement ) ) {
+      return false;
+    }
 
     // continue to next element if this one is meant to be hidden
     if ( isElementHidden( domElement ) ) {

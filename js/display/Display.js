@@ -54,7 +54,6 @@ define( function( require ) {
   'use strict';
 
   var AccessibilityTree = require( 'SCENERY/accessibility/AccessibilityTree' );
-  var AccessibilityUtil = require( 'SCENERY/accessibility/AccessibilityUtil' );
   var Dimension2 = require( 'DOT/Dimension2' );
   var Emitter = require( 'AXON/Emitter' );
   var escapeHTML = require( 'PHET_CORE/escapeHTML' );
@@ -89,13 +88,11 @@ define( function( require ) {
   var FittedBlockBoundsOverlay = require( 'SCENERY/overlays/FittedBlockBoundsOverlay' );
   var FocusIO = require( 'SCENERY/accessibility/FocusIO' );
   var FocusOverlay = require( 'SCENERY/overlays/FocusOverlay' );
+  var NullableIO = require( 'TANDEM/types/NullableIO' );
   var platform = require( 'PHET_CORE/platform' );
   var PointerAreaOverlay = require( 'SCENERY/overlays/PointerAreaOverlay' );
   var PointerOverlay = require( 'SCENERY/overlays/PointerOverlay' );
   var Util = require( 'SCENERY/util/Util' );
-
-  // ifphetio
-  var NullableIO = require( 'ifphetio!PHET_IO/types/NullableIO' );
 
   /**
    * Constructs a Display that will show the rootNode and its subtree in a visual state. Default options provided below
@@ -1133,60 +1130,6 @@ define( function( require ) {
     },
 
     /**
-     * A random event creater that sends keyboard events. Based on the idea of fuzzMouse, but to test/spam accessibility
-     * related keyboard navigation and alternate input implementation.
-     *
-     * TODO: NOTE: Right now this is a very experimental implementation. Tread wearily
-     * TODO: @param keyboardPressesPerFocusedItem {number} - basically would be the same as fuzzRate, but handling
-     * TODO:     the keydown events for a focused item
-     */
-    fuzzBoardEvents: function() {
-
-      var nextFocusable = AccessibilityUtil.getRandomFocusable();
-      nextFocusable.focus();
-
-      // TODO: add accessibility util functions to get a random focusable element from the tree
-      var elementWithFocus = document.activeElement;
-
-      // click something
-      triggerDOMEvent( 'click', elementWithFocus );
-
-      // TODO: A while loop of events will make us able to spam a ton of key presses per frame/per focused item,
-      // TODO:   perhaps using a parameter to control the number of events per frame
-      var min = 9;
-      var max = 223;
-      var randomKeyCode = Math.floor( Math.random() * ( max - min ) + min );
-      triggerDOMEvent( 'keydown', elementWithFocus, randomKeyCode );
-
-      // TODO: can we use setTimeout here?
-      setTimeout( function() {
-        triggerDOMEvent( 'keyup', elementWithFocus, randomKeyCode );
-
-      }, 1 ); // TODO: make this time variable?
-
-      /**
-       * Taken from example in http://output.jsbin.com/awenaq/3,
-       * @param event
-       * @param element
-       * @param [keycode]
-       */
-      function triggerDOMEvent( event, element, keyCode ) {
-        var eventObj = document.createEventObject ?
-                       document.createEventObject() : document.createEvent( 'Events' );
-
-        if ( eventObj.initEvent ) {
-          eventObj.initEvent( event, true, true );
-        }
-
-        eventObj.keyCode = keyCode;
-        // eventObj.shiftKey = true; // TODO: we can add modifier keys in here with options?
-        eventObj.which = keyCode;
-
-        element.dispatchEvent ? element.dispatchEvent( eventObj ) : element.fireEvent( 'on' + event, eventObj );
-      }
-    },
-
-    /**
      * Makes this Display available for inspection.
      * @public
      */
@@ -1858,7 +1801,7 @@ define( function( require ) {
     // Only instrument if accessibility is enabled
     ( window.phet && phet.chipper && phet.chipper.accessibility ) ? {
 
-      // Make this a static tandem so that it can be added to studio correctly (batched and then flushed when the
+      // Make this a static tandem so that it can be added to PhET-iO Studio correctly (batched and then flushed when the
       // listener is added).
       tandem: Tandem.rootTandem.createTandem( 'display' ).createTandem( 'focusProperty' ),
       phetioType: PropertyIO( NullableIO( FocusIO ) )

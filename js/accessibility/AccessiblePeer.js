@@ -318,6 +318,7 @@ define( function( require ) {
       // recompute and assign the association attributes that link two elements (like aria-labelledby)
       this.onAriaLabelledbyAssociationChange();
       this.onAriaDescribedbyAssociationChange();
+      this.onActiveDescendantAssociationChange();
 
       // add all listeners to the dom element
       for ( i = 0; i < this.node.accessibleInputListeners.length; i++ ) {
@@ -340,6 +341,7 @@ define( function( require ) {
 
       this.node.updateOtherNodesAriaLabelledby();
       this.node.updateOtherNodesAriaDescribedby();
+      this.node.updateOtherNodesActiveDescendant();
     },
 
     /**
@@ -448,6 +450,25 @@ define( function( require ) {
     },
 
     /**
+     * Recompute the aria-activedescendant attributes for all of the peer's elements
+     * @public
+     */
+    onActiveDescendantAssociationChange: function() {
+      this.removeAttributeFromAllElements( 'aria-activedescendant' );
+
+      for ( var i = 0; i < this.node.activeDescendantAssociations.length; i++ ) {
+        var associationObject = this.node.activeDescendantAssociations[ i ];
+
+        // Assert out if the model list is different than the data held in the associationObject
+        assert && assert( associationObject.otherNode.nodesThatAreActiveDescendantToThisNode.indexOf( this.node ) >= 0,
+          'unexpected otherNode' );
+
+
+        this.setAssociationAttribute( 'aria-activedescendant', associationObject );
+      }
+    },
+
+    /**
      * Set all accessible attributes onto the peer elements from the model's stored data objects
      * @private
      *
@@ -497,6 +518,7 @@ define( function( require ) {
      */
     onFocus: function( event ) {
       if ( event.target === this._primarySibling ) {
+
         // NOTE: The "root" peer can't be focused (so it doesn't matter if it doesn't have a node).
         if ( this.accessibleInstance.node.focusable ) {
           scenery.Display.focus = new Focus( this.accessibleInstance.display, this.accessibleInstance.guessVisualTrail() );
@@ -575,6 +597,9 @@ define( function( require ) {
         // for setting certain attributes (e.g. MathML).
         namespace: null,
 
+        // set as a javascript property instead of an attribute on the DOM Element.
+        asProperty: false,
+
         elementName: PRIMARY_SIBLING // see this.getElementName() for valid values, default to the primary sibling
       }, options );
 
@@ -584,7 +609,7 @@ define( function( require ) {
         element.setAttributeNS( options.namespace, attribute, attributeValue );
       }
       // treat it like a property
-      else if ( typeof attributeValue === 'boolean' ) {
+      else if ( options.asProperty ) {
         element[ attribute ] = attributeValue;
       }
       else {
@@ -638,7 +663,7 @@ define( function( require ) {
      * @param {Object} associationObject - see addAriaLabelledbyAssociation() for schema
      */
     setAssociationAttribute: function( attribute, associationObject ) {
-      assert && assert( attribute === 'aria-labelledby' || attribute === 'aria-describedby',
+      assert && assert( AccessibilityUtil.ASSOCIATION_ATTRIBUTES.indexOf( attribute ) >= 0,
         'unsupported attribute for setting with association object: ' + attribute );
       assert && AccessibilityUtil.validateAssociationObject( associationObject );
 
