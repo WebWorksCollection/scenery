@@ -95,15 +95,15 @@ define( function( require ) {
     'white-space: nowrap;' +
 
     // CRITICAL - so PDOM elements do not interfere with rest of scenery input
-    // 'pointer-events: none;' +
+    'pointer-events: none;' +
 
     // So that elements can never be seen visually, can comment this out to "see" transformed elements in the
     // PDOM. Text and Backgrounds of elements are made transparent where possible. Text is made very small so that
     // it doesn't extend into the display. Very low opacity on the root takes care of the rest.
     // 'color: white' + // helpful for seeing text over a black background for debugging
-    // 'font-size: 1px;' + // must be at least 1px to be readable with AT
-    // 'color: transparent;' +
-    // 'background-color: transparent;' +
+    'font-size: 1px;' + // must be at least 1px to be readable with AT
+    'color: transparent;' +
+    'background-color: transparent;' +
   '}'
 );
 
