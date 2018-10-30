@@ -144,7 +144,7 @@ define( function( require ) {
 
           // root is relatively styled so that descendants can be positioned absolutely
           this._primarySibling.style.position = 'relative';
-          this._primarySibling.style.opacity = '0.0001';
+          // this._primarySibling.style.opacity = '0.0001';
         }
 
         return this;
@@ -161,7 +161,7 @@ define( function( require ) {
       }
 
       // @private {TransformTracker} - update CSS bounds when transform of this node changes
-      this.transformTracker = new TransformTracker( this.trail );
+      this.transformTracker = new TransformTracker( this.accessibleInstance.guessVisualTrail() );
 
       // attach a MutationObserver that will update the transformation of the element when content or children change
       // only create new one if not from pool
@@ -950,7 +950,7 @@ define( function( require ) {
         var localBounds = this.node.localBounds;
 
         if ( localBounds.isFinite() ) {
-          var localToGlobalMatrix = this.node.getLocalToGlobalMatrix();
+          var localToGlobalMatrix = this.transformTracker.getMatrix();
           var globalBounds = localBounds.transformed( localToGlobalMatrix );
           var nodeScaleVector = this.node.getScaleVector();
 
@@ -1005,6 +1005,9 @@ define( function( require ) {
         AccessibilityUtil.hideElement( this.primarySibling );
         this.labelSibling && AccessibilityUtil.hideElement( this.labelSibling );
       }
+
+      // don't update until content or transform becomes dirty again
+      this.positionDirty = false;
     },
 
     /**

@@ -429,11 +429,6 @@ define( function( require ) {
       assert && assert( window.phet && window.phet.chipper.queryParameters.mobileA11yTest, 'this should be hidden behind mobileA11yTest query parameter' );
 
       // no longer dirty for next time
-      rootInstance.peer.positionDirty = false;
-
-      // we are going to update position of all elements down this subtree, no need to search down this subtree at all
-      rootInstance.peer.descendantPositionDirty = false;
-
       rootInstance.peer.positionElements();
 
       // now apply to all instance in the subtree (depth-first)
