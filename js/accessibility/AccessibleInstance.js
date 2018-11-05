@@ -575,7 +575,10 @@ define( function( require ) {
       var firstGoodIndex = lastBadIndex + 1;
       var firstGoodNode = this.trail.nodes[ firstGoodIndex ];
       var baseTrails = firstGoodNode.getTrailsTo( this.display.rootNode );
-      assert && assert( baseTrails.length > 0 );
+
+      // NOTE: Accessible order attached this node to a node that is not in the display - we need to handle this case
+      // perhaps use a trail from this node to the "good node" above instead of this.trail?
+      // assert && assert( baseTrails.length > 0 );
 
       // fail gracefully-ish?
       if ( baseTrails.length === 0 ) {

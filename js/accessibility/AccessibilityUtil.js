@@ -538,8 +538,10 @@ define( function( require ) {
      * @param {HTMLElement}
      */
     hideElement: function( element ) {
-      element.style.left = '-9999px';
-      element.style.top = '-9999px';
+
+      // NOTE: This does not work on iOS 12.1 Safari.
+      // element.style.left = '-9999px';
+      // element.style.top = '-9999px';
     },
 
     TAGS: {
