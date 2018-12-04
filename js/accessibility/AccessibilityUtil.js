@@ -103,6 +103,8 @@ define( function( require ) {
 
     // to remove the default focus highlight around HTML elements
     'outline: none;' +
+    'box-shadow:none;' +
+    'border-color:transparent;' +
 
     // So that elements can never be seen visually, can comment this out to "see" transformed elements in the
     // PDOM. Text and Backgrounds of elements are made transparent where possible. Text is made very small so that
