@@ -483,7 +483,7 @@ define( function( require ) {
         var timeNow = new Date().getTime();
         var timeSinceUpdate = timeNow - this._a11yTimeSincePositionUpdate;
 
-        if ( timeSinceUpdate > 5000 ) {
+        if ( timeSinceUpdate > 500 ) {
 
           // Update any out of date CSS positioning for AccessiblePeer siblings - for now only doing this while exploring
           // a solution for a11y on mobile devices

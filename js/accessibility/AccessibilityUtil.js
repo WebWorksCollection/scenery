@@ -105,9 +105,9 @@ define( function( require ) {
     // PDOM. Text and Backgrounds of elements are made transparent where possible. Text is made very small so that
     // it doesn't extend into the display. Very low opacity on the root takes care of the rest.
     // 'color: white' + // helpful for seeing text over a black background for debugging
-    'font-size: 1px;' + // must be at least 1px to be readable with AT
-    'color: transparent;' +
-    'background-color: transparent;' +
+    // 'font-size: 1px;' + // must be at least 1px to be readable with AT
+    // 'color: transparent;' +
+    // 'background-color: transparent;' +
   '}'
 );
 

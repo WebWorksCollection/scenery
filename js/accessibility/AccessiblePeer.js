@@ -144,7 +144,10 @@ define( function( require ) {
 
           // root is relatively styled so that descendants can be positioned absolutely
           this._primarySibling.style.position = 'relative';
-          this._primarySibling.style.opacity = '0.0001';
+
+          // a catch all for things that AccessibilityUtil SceneryStyle .pdomElement doesn't hide - must be added
+          // to the root, sims take a massive performance hit if opacity is added to all HTML elements
+          // this._primarySibling.style.opacity = '0.0001';
         }
 
         return this;
