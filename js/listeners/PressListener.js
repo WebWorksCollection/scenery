@@ -19,7 +19,6 @@ define( function( require ) {
   var DerivedProperty = require( 'AXON/DerivedProperty' );
   var Emitter = require( 'AXON/Emitter' );
   var EmitterIO = require( 'AXON/EmitterIO' );
-  var Event = require( 'SCENERY/input/Event' );
   var EventIO = require( 'SCENERY/input/EventIO' );
   var inherit = require( 'PHET_CORE/inherit' );
   var Mouse = require( 'SCENERY/input/Mouse' );
@@ -29,10 +28,25 @@ define( function( require ) {
   var scenery = require( 'SCENERY/scenery' );
   var Tandem = require( 'TANDEM/Tandem' );
   var timer = require( 'PHET_CORE/timer' );
+  var TypeDef = require( 'AXON/TypeDef' );
   var VoidIO = require( 'TANDEM/types/VoidIO' );
 
   // global
   var globalID = 0;
+
+  var nullOrFunctionPredicate = TypeDef.getNullOrTypeofPredicate( 'function' );
+
+  // constants - factored out to reduce memory usage, see https://github.com/phetsims/unit-rates/issues/207
+  var PressedEmitterIO = EmitterIO( [
+    { name: 'event', type: EventIO },
+    { name: 'targetNode', type: VoidIO, predicate: TypeDef.getNullOrInstanceOfPredicate( Node ) },
+    { name: 'callback', type: VoidIO, predicate: nullOrFunctionPredicate }
+  ] );
+
+  var ReleasedEmitterIO = EmitterIO( [ { name: 'callback', type: VoidIO, predicate: nullOrFunctionPredicate } ] );
+
+  // Factor out to reduce memory footprint, see https://github.com/phetsims/tandem/issues/71
+  const truePredicate = _.constant( true );
 
   /**
    * @constructor
@@ -81,7 +95,7 @@ define( function( require ) {
 
       // {function} - Checks this when trying to start a press. If this function returns false, a press will not be
       // started.
-      canStartPress: _.constant( true ),
+      canStartPress: truePredicate,
 
       // {number} (a11y) - How long something should 'look' pressed after an accessible click input event
       a11yLooksPressedInterval: 100,
@@ -90,7 +104,8 @@ define( function( require ) {
       tandem: Tandem.required,
 
       // to support properly passing this to children, see https://github.com/phetsims/tandem/issues/60
-      phetioReadOnly: PhetioObject.DEFAULT_OPTIONS.phetioReadOnly
+      phetioReadOnly: PhetioObject.DEFAULT_OPTIONS.phetioReadOnly,
+      phetioFeatured: PhetioObject.DEFAULT_OPTIONS.phetioFeatured
     }, options );
 
     assert && assert( typeof options.mouseButton === 'number' && options.mouseButton >= 0 && options.mouseButton % 1 === 0,
@@ -213,17 +228,13 @@ define( function( require ) {
 
     // @private {Emitter} - Emitted on press event
     this._pressedEmitter = new Emitter( {
-      valueTypes: [ Event, v => v === null || v instanceof Node, v => v === null || typeof v === 'function' ],
       tandem: options.tandem.createTandem( 'pressedEmitter' ),
       phetioDocumentation: 'Emits whenever a press occurs. The first argument when emitting can be ' +
                            'used to convey info about the Event.',
       phetioReadOnly: options.phetioReadOnly,
+      phetioFeatured: options.phetioFeatured,
       phetioEventType: 'user',
-      phetioType: EmitterIO( [
-        { name: 'event', type: EventIO },
-        { name: 'targetNode', type: VoidIO },
-        { name: 'callback', type: VoidIO }
-      ] ),
+      phetioType: PressedEmitterIO,
 
       // The main implementation of "press" handling is implemented as a callback to the emitter, so things are nested
       // nicely for phet-io.
@@ -232,12 +243,12 @@ define( function( require ) {
 
     // @private {Emitter} - Emitted on release event
     this._releasedEmitter = new Emitter( {
-      valueTypes: [ v => v === null || typeof v === 'function' ],
       tandem: options.tandem.createTandem( 'releasedEmitter' ),
       phetioDocumentation: 'Emits whenever a release occurs.',
       phetioReadOnly: options.phetioReadOnly,
+      phetioFeatured: options.phetioFeatured,
       phetioEventType: 'user',
-      phetioType: EmitterIO( [ { name: 'callback', type: VoidIO } ] ),
+      phetioType: ReleasedEmitterIO,
 
       // The main implementation of "release" handling is implemented as a callback to the emitter, so things are nested
       // nicely for phet-io.
@@ -348,7 +359,6 @@ define( function( require ) {
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'PressListener#' + this._id + ' successful press' );
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
-
       this._pressedEmitter.emit( event, targetNode || null, callback || null ); // cannot pass undefined into emit call
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
@@ -570,9 +580,14 @@ define( function( require ) {
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'PressListener#' + this._id + ' pointer up' );
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
-      assert && assert( event.pointer === this.pointer );
+      // Since our callback can get queued up and THEN interrupted before this happens, we'll check to make sure we are
+      // still pressed by the time we get here. If not pressed, then there is nothing to do.
+      // See https://github.com/phetsims/capacitor-lab-basics/issues/251
+      if ( this.isPressed ) {
+        assert && assert( event.pointer === this.pointer );
 
-      this.release();
+        this.release();
+      }
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
     },
@@ -589,9 +604,14 @@ define( function( require ) {
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'PressListener#' + this._id + ' pointer cancel' );
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
-      assert && assert( event.pointer === this.pointer );
+      // Since our callback can get queued up and THEN interrupted before this happens, we'll check to make sure we are
+      // still pressed by the time we get here. If not pressed, then there is nothing to do.
+      // See https://github.com/phetsims/capacitor-lab-basics/issues/251
+      if ( this.isPressed ) {
+        assert && assert( event.pointer === this.pointer );
 
-      this.interrupt(); // will mark as interrupted and release()
+        this.interrupt(); // will mark as interrupted and release()
+      }
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
     },
@@ -608,9 +628,14 @@ define( function( require ) {
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'PressListener#' + this._id + ' pointer move' );
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
-      assert && assert( event.pointer === this.pointer );
+      // Since our callback can get queued up and THEN interrupted before this happens, we'll check to make sure we are
+      // still pressed by the time we get here. If not pressed, then there is nothing to do.
+      // See https://github.com/phetsims/capacitor-lab-basics/issues/251
+      if ( this.isPressed ) {
+        assert && assert( event.pointer === this.pointer );
 
-      this.drag( event );
+        this.drag( event );
+      }
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
     },

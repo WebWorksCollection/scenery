@@ -14,7 +14,6 @@ define( function( require ) {
   var AccessibilityUtil = require( 'SCENERY/accessibility/AccessibilityUtil' );
   var Bounds2 = require( 'DOT/Bounds2' );
   var arrayRemove = require( 'PHET_CORE/arrayRemove' );
-  var Focus = require( 'SCENERY/accessibility/Focus' );
   var FullScreen = require( 'SCENERY/util/FullScreen' );
   var inherit = require( 'PHET_CORE/inherit' );
   var Matrix3 = require( 'DOT/Matrix3' );
@@ -24,6 +23,7 @@ define( function( require ) {
   var TransformTracker = require( 'SCENERY/util/TransformTracker' );
   // so RequireJS doesn't complain about circular dependency
   // var Display = require( 'SCENERY/display/Display' );
+  // var AccessibleInstance = require( 'SCENERY/accessibility/AccessibleInstance' );
 
   var globalId = 1;
 
@@ -161,7 +161,7 @@ define( function( require ) {
       }
 
       // @private {TransformTracker} - update CSS bounds when transform of this node changes
-      this.transformTracker = new TransformTracker( this.accessibleInstance.guessVisualTrail() );
+      this.transformTracker = new TransformTracker( scenery.AccessibleInstance.guessVisualTrail( this.trail, this.display.rootNode ) );
 
       // attach a MutationObserver that will update the transformation of the element when content or children change
       // only create new one if not from pool
@@ -256,6 +256,10 @@ define( function( require ) {
       } );
       this._primarySibling.id = uniqueId;
 
+      // assign an id that lets us map the DOM element to a Scenery Trail
+      // NOTE: dataset isn't supported by all namespaces (like MathML) so we need to use setAttribute
+      this.setAttributeToElement( 'data-trail-id', uniqueId );
+
       // create the container parent for the dom siblings
       if ( options.containerTagName ) {
         this._containerParent = AccessibilityUtil.createElement( options.containerTagName, false );
@@ -281,15 +285,6 @@ define( function( require ) {
       this.orderElements( options );
 
       // assign listeners (to be removed or detached during disposal)
-
-      // @private {function} - Referenced for disposal
-      this.focusEventListener = this.focusEventListener || this.onFocus.bind( this );
-      this.blurEventListener = this.blurEventListener || this.onBlur.bind( this );
-
-      // Hook up listeners for when our primary element is focused or blurred.
-      this._primarySibling.addEventListener( 'blur', this.blurEventListener );
-      this._primarySibling.addEventListener( 'focus', this.focusEventListener );
-
       this._primaryObserver.observe( this._primarySibling, OBSERVER_CONFIG );
 
       // set the accessible label now that the element has been recreated again, but not if the tagName
@@ -366,6 +361,7 @@ define( function( require ) {
       }
 
       // insert the label and description elements in the correct location if they exist
+      // NOTE: Important for arrangeContentElement to be called on the label sibling first for correct order
       this._labelSibling && this.arrangeContentElement( this._labelSibling, options.appendLabel );
       this._descriptionSibling && this.arrangeContentElement( this._descriptionSibling, options.appendDescription );
 
@@ -496,46 +492,23 @@ define( function( require ) {
     },
 
     /**
-     * Set the input value on the peer's primary sibling element. Using the value setter seems to be the only way
-     * to have the value be set correctly so we cannot use onAttributeChange for this.
+     * Set the input value on the peer's primary sibling element. The value attribute must be set as a Property to be
+     * registered correctly by an assistive device. If null, the attribute is removed so that we don't clutter the DOM
+     * with value="null" attributes.
+     *
      * @public (scenery-internal)
      */
     onInputValueChange: function() {
+      assert && assert( this.node.inputValue !== undefined, 'use null to remove input value attribute' );
+
       if ( this.node.inputValue === null ) {
-        this.primarySibling.removeAttribute( 'value' );
+        this.removeAttributeFromElement( 'value' );
       }
       else {
-        this.primarySibling.value = this.node.inputValue;
 
-      }
-    },
-
-    /**
-     * Called when our parallel DOM element gets focused.
-     * @private
-     *
-     * @param {DOMEvent} event
-     */
-    onFocus: function( event ) {
-      if ( event.target === this._primarySibling ) {
-
-        // NOTE: The "root" peer can't be focused (so it doesn't matter if it doesn't have a node).
-        if ( this.accessibleInstance.node.focusable ) {
-          scenery.Display.focus = new Focus( this.accessibleInstance.display, this.accessibleInstance.guessVisualTrail() );
-          this.display.pointerFocus = null;
-        }
-      }
-    },
-
-    /**
-     * Called when our parallel DOM element gets blurred (loses focus).
-     * @private
-     *
-     * @param {DOMEvent} event
-     */
-    onBlur: function( event ) {
-      if ( event.target === this._primarySibling ) {
-        scenery.Display.focus = null;
+        // type conversion for DOM spec
+        var valueString = this.node.inputValue + '';
+        this.setAttributeToElement( 'value', valueString, { asProperty: true } );
       }
     },
 
@@ -584,7 +557,6 @@ define( function( require ) {
 
     /**
      * Sets a attribute on one of the peer's HTMLElements.
-     * NOTE: If the attributeValue is a boolean, then it will be set as a javascript property on the HTMLElement rather than an attribute
      * @public (scenery-internal)
      * @param {string} attribute
      * @param {*} attributeValue
@@ -600,15 +572,18 @@ define( function( require ) {
         // set as a javascript property instead of an attribute on the DOM Element.
         asProperty: false,
 
-        elementName: PRIMARY_SIBLING // see this.getElementName() for valid values, default to the primary sibling
+        elementName: PRIMARY_SIBLING, // see this.getElementName() for valid values, default to the primary sibling
+
+        // {HTMLElement|null} - element that will directly receive the input rather than looking up by name, if
+        // provided, elementName option will have no effect
+        element: null
       }, options );
 
-      var element = this.getElementByName( options.elementName );
+      var element = options.element || this.getElementByName( options.elementName );
 
       if ( options.namespace ) {
         element.setAttributeNS( options.namespace, attribute, attributeValue );
       }
-      // treat it like a property
       else if ( options.asProperty ) {
         element[ attribute ] = attributeValue;
       }
@@ -630,10 +605,14 @@ define( function( require ) {
         // for setting certain attributes (e.g. MathML).
         namespace: null,
 
-        elementName: PRIMARY_SIBLING // see this.getElementName() for valid values, default to the primary sibling
+        elementName: PRIMARY_SIBLING, // see this.getElementName() for valid values, default to the primary sibling
+
+        // {HTMLElement|null} - element that will directly receive the input rather than looking up by name, if
+        // provided, elementName option will have no effect
+        element: null
       }, options );
 
-      var element = this.getElementByName( options.elementName );
+      var element = options.element || this.getElementByName( options.elementName );
 
       if ( options.namespace ) {
         element.removeAttributeNS( options.namespace, attribute );
@@ -714,6 +693,10 @@ define( function( require ) {
      * the primarySibling. Its placement will also depend on whether or not this node wants to append this element,
      * see setAppendLabel() and setAppendDescription(). By default, the "content" element will be placed before the
      * primarySibling.
+     *
+     * NOTE: This function assumes it is called on label sibling before description sibling for inserting elements
+     * into the correct order.
+     * 
      * @private
      *
      * @param {HTMLElement} contentElement
@@ -738,10 +721,11 @@ define( function( require ) {
 
         // keep this.topLevelElements in sync
         arrayRemove( this.topLevelElements, contentElement );
+        var indexOfPrimarySibling = this.topLevelElements.indexOf( this._primarySibling );
 
-        var indexOffset = appendElement ? 1 : 0;
-        var indexOfContentElement = this.topLevelElements.indexOf( this._primarySibling ) + indexOffset;
-        this.topLevelElements.splice( indexOfContentElement, 0, contentElement );
+        // if appending, just insert at at end of the top level elements
+        var insertIndex = appendElement ? this.topLevelElements.length : indexOfPrimarySibling;
+        this.topLevelElements.splice( insertIndex, 0, contentElement );
       }
     },
 
@@ -783,10 +767,10 @@ define( function( require ) {
         for ( var i = 0; i < this.topLevelElements.length; i++ ) {
           var element = this.topLevelElements[ i ];
           if ( visible ) {
-            element.removeAttribute( 'hidden' );
+            this.removeAttributeFromElement( 'hidden', { element: element } );
           }
           else {
-            element.setAttribute( 'hidden', '' );
+            this.setAttributeToElement( 'hidden', '', { element: element } );
           }
         }
 
@@ -860,7 +844,9 @@ define( function( require ) {
       // REVIEW: Should we check _labelTagName directly? Or use a behavior-like strategy for this?
       // ZEPUMPH: perhaps implemented with https://github.com/phetsims/scenery/issues/867
       if ( this._labelSibling.tagName.toUpperCase() === LABEL_TAG ) {
-        this._labelSibling.setAttribute( 'for', this._primarySibling.id );
+        this.setAttributeToElement( 'for', this._primarySibling.id, {
+          elementName: AccessiblePeer.LABEL_SIBLING
+        } );
       }
     },
 

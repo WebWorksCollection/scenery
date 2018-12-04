@@ -515,21 +515,6 @@ define( function( require ) {
     // Initialize sub-components
     this._picker = new Picker( this );
 
-    // Make sure Node's prototype dispose() is called when dispose() is called, and make sure that it isn't called
-    // more than once. See https://github.com/phetsims/scenery/issues/601.
-    // @private {boolean}
-    this._isDisposed = false;
-    if ( assert ) {
-      // Wrap the prototype dispose method with a check. NOTE: We will not catch devious cases where the dispose() is
-      // overridden after the Node constructor (which may happen).
-      var protoDispose = this.dispose;
-      this.dispose = function() {
-        assert && assert( !this._isDisposed, 'This Node has already been disposed, and cannot be disposed again' );
-        protoDispose.call( this );
-        assert && assert( this._isDisposed, 'Node.dispose() call is missing from an overridden dispose method' );
-      };
-    }
-
     // @public (scenery-internal) {boolean} - There are certain specific cases (in this case due to a11y) where we need
     // to know that a node is getting removed from its parent BUT that process has not completed yet. It would be ideal
     // to not need this.
@@ -1495,7 +1480,8 @@ define( function( require ) {
     /**
      * Allows overriding the value of localBounds (and thus changing things like 'bounds' that depend on localBounds).
      * If it's set to a non-null value, that value will always be used for localBounds until this function is called
-     * again. To revert to having Scenery compute the localBounds, set this to null.
+     * again. To revert to having Scenery compute the localBounds, set this to null.  The bounds should not be reduced
+     * smaller than the visible bounds on the screen.
      * @public
      *
      * @param {Bounds2|null} localBounds
@@ -1891,7 +1877,7 @@ define( function( require ) {
       var index = _.indexOf( this._inputListeners, listener );
 
       // ensure the listener is in our list (ignore assertion for disposal, see https://github.com/phetsims/sun/issues/394)
-      assert && assert( this._isDisposed || index >= 0, 'Could not find input listener to remove' );
+      assert && assert( this.isDisposed || index >= 0, 'Could not find input listener to remove' );
       if ( index >= 0 ) {
         this._inputListeners.splice( index, 1 );
         this._picker.onRemoveInputListener();
@@ -4998,10 +4984,7 @@ define( function( require ) {
      *
      * @returns {boolean}
      */
-    isDisposed: function() {
-      return this._isDisposed;
-    },
-    get disposed() { return this.isDisposed(); },
+    get disposed() { return this.isDisposed; },
 
     /**
      * Override for extra information in the fing output (from Display.getDebugHTML()).
@@ -5146,8 +5129,6 @@ define( function( require ) {
      * @public
      */
     dispose: function() {
-      // See constructor for Node disposal checks
-      this._isDisposed = true;
 
       // remove all accessibility input listeners
       this.disposeAccessibility();
@@ -5168,7 +5149,7 @@ define( function( require ) {
      *       techniques.
      */
     disposeSubtree: function() {
-      if ( !this.isDisposed() ) {
+      if ( !this.isDisposed ) {
         // makes a copy before disposing
         var children = this.children;
 

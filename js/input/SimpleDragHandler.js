@@ -10,14 +10,18 @@ define( function( require ) {
   'use strict';
 
   // modules
+  var Emitter = require( 'AXON/Emitter' );
+  var EmitterIO = require( 'AXON/EmitterIO' );
+  var Vector2IO = require( 'DOT/Vector2IO' );
+  var VoidIO = require( 'TANDEM/types/VoidIO' );
   var BooleanProperty = require( 'AXON/BooleanProperty' );
   var inherit = require( 'PHET_CORE/inherit' );
   var Mouse = require( 'SCENERY/input/Mouse' );
   var PhetioObject = require( 'TANDEM/PhetioObject' );
   var scenery = require( 'SCENERY/scenery' );
-  var SimpleDragHandlerIO = require( 'SCENERY/input/SimpleDragHandlerIO' );
   var Tandem = require( 'TANDEM/Tandem' );
   var Touch = require( 'SCENERY/input/Touch' );
+  var Vector2 = require( 'DOT/Vector2' );
 
   /**
    * @param {Object} [options]
@@ -52,7 +56,6 @@ define( function( require ) {
 
       // phetio
       tandem: Tandem.required,
-      phetioType: SimpleDragHandlerIO,
       phetioState: false,
       phetioEventType: 'user'
 
@@ -89,6 +92,71 @@ define( function( require ) {
 
     // @private {boolean}
     this.disposed = false;
+
+    // @private
+    this.dragStartedEmitter = new Emitter( {
+      tandem: options.tandem.createTandem( 'dragStartedEmitter' ),
+      phetioType: EmitterIO(
+        [ { name: 'point', type: Vector2IO, documentation: 'the position of the drag start in view coordinates' },
+          { name: 'event', type: VoidIO, documentation: 'the scenery pointer Event' } ] ),
+      listener: function( point, event ) {
+        if ( self.options.start ) {
+          self.options.start.call( null, event, self.trail );
+        }
+      }
+    } );
+
+    // @private
+    this.draggedEmitter = new Emitter( {
+      phetioHighFrequency: true,
+      tandem: options.tandem.createTandem( 'draggedEmitter' ),
+      phetioType: EmitterIO(
+        [ { name: 'point', type: Vector2IO, documentation: 'the position of the drag in view coordinates' },
+          {
+            name: 'delta',
+            type: Vector2IO,
+            documentation: 'the change from the previous position to the current position'
+          },
+          { name: 'event', type: VoidIO, documentation: 'the scenery pointer Event' } ] ),
+      listener: function( point, delta, event ) {
+
+        // move by the delta between the previous point, using the precomputed transform
+        // prepend the translation on the node, so we can ignore whatever other transform state the node has
+        if ( self.options.translate ) {
+          var translation = self.node.getMatrix().getTranslation();
+          self.options.translate.call( null, {
+            delta: delta,
+            oldPosition: translation,
+            position: translation.plus( delta )
+          } );
+        }
+        self.lastDragPoint = self.pointer.point;
+
+        if ( self.options.drag ) {
+
+          // TODO: add the position in to the listener
+          var saveCurrentTarget = event.currentTarget;
+          event.currentTarget = self.node; // #66: currentTarget on a pointer is null, so set it to the node we're dragging
+          self.options.drag.call( null, event, self.trail ); // new position (old position?) delta
+          event.currentTarget = saveCurrentTarget; // be polite to other listeners, restore currentTarget
+        }
+      }
+    } );
+
+    // @private
+    this.dragEndedEmitter = new Emitter( {
+      tandem: options.tandem.createTandem( 'dragEndedEmitter' ),
+      phetioType: EmitterIO(
+        [ { name: 'point', type: Vector2IO, documentation: 'the position of the drag end in view coordinates' },
+          { name: 'event', type: VoidIO, documentation: 'the scenery pointer Event' } ] ),
+      listener: function( point, event ) {
+        if ( self.options.end ) {
+
+          // drag end may be triggered programmatically and hence event and trail may be undefined
+          self.options.end.call( null, event, self.trail );
+        }
+      }
+    } );
 
     // if an ancestor is transformed, pin our node
     this.transformListener = {
@@ -163,39 +231,12 @@ define( function( require ) {
           return;
         }
 
+        var delta = self.transform.inverseDelta2( globalDelta );
+
         sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'SimpleDragHandler (pointer) move for ' + self.trail.toString() );
         sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
-        var delta = self.transform.inverseDelta2( globalDelta );
-
-        // TODO: Convert to phtioHighFrequency Emitter
-        self.phetioStartEvent( 'dragged', {
-          x: event.pointer.point.x,
-          y: event.pointer.point.y
-        } );
-
-        // move by the delta between the previous point, using the precomputed transform
-        // prepend the translation on the node, so we can ignore whatever other transform state the node has
-        if ( self.options.translate ) {
-          var translation = self.node.getMatrix().getTranslation();
-          self.options.translate.call( null, {
-            delta: delta,
-            oldPosition: translation,
-            position: translation.plus( delta )
-          } );
-        }
-        self.lastDragPoint = self.pointer.point;
-
-        if ( self.options.drag ) {
-
-          // TODO: consider adding in a delta to the listener
-          // TODO: add the position in to the listener
-          var saveCurrentTarget = event.currentTarget;
-          event.currentTarget = self.node; // #66: currentTarget on a pointer is null, so set it to the node we're dragging
-          self.options.drag.call( null, event, self.trail ); // new position (old position?) delta
-          event.currentTarget = saveCurrentTarget; // be polite to other listeners, restore currentTarget
-        }
-        self.phetioEndEvent();
+        self.draggedEmitter.emit( event.pointer.point, delta, event );
 
         sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
       }
@@ -237,14 +278,7 @@ define( function( require ) {
       // event.domEvent may not exist if this is touch-to-snag
       this.mouseButton = event.pointer instanceof Mouse ? event.domEvent.button : undefined;
 
-      this.phetioStartEvent( 'dragStarted', {
-        x: event.pointer.point.x,
-        y: event.pointer.point.y
-      } );
-      if ( this.options.start ) {
-        this.options.start.call( null, event, this.trail );
-      }
-      this.phetioEndEvent();
+      this.dragStartedEmitter.emit( event.pointer.point, event );
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
     },
@@ -261,15 +295,9 @@ define( function( require ) {
 
       this.isDraggingProperty.set( false );
 
-      this.phetioStartEvent( 'dragEnded' );
-
-      if ( this.options.end ) {
-
-        // drag end may be triggered programmatically and hence event and trail may be undefined
-        this.options.end.call( null, event, this.trail );
-      }
-
-      this.phetioEndEvent();
+      // Signify drag ended.  In the case of programmatically ended drags, signify drag ended at 0,0.
+      // see https://github.com/phetsims/ph-scale-basics/issues/43
+      this.dragEndedEmitter.emit( event ? event.pointer.point : Vector2.ZERO, event );
 
       // release our reference
       this.pointer = null;

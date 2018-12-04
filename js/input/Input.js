@@ -121,6 +121,7 @@
 define( function( require ) {
   'use strict';
 
+  var A11yPointer = require( 'SCENERY/input/A11yPointer' );
   var BatchedDOMEvent = require( 'SCENERY/input/BatchedDOMEvent' );
   var BrowserEvents = require( 'SCENERY/input/BrowserEvents' );
   var cleanArray = require( 'PHET_CORE/cleanArray' );
@@ -128,6 +129,7 @@ define( function( require ) {
   var Emitter = require( 'AXON/Emitter' );
   var EmitterIO = require( 'AXON/EmitterIO' );
   var Event = require( 'SCENERY/input/Event' );
+  var Features = require( 'SCENERY/util/Features' );
   var inherit = require( 'PHET_CORE/inherit' );
   var Mouse = require( 'SCENERY/input/Mouse' );
   var NumberIO = require( 'TANDEM/types/NumberIO' );
@@ -190,7 +192,10 @@ define( function( require ) {
     // @private {Array.<BatchedDOMEvent}>
     this.batchedEvents = [];
 
-    // @public {Mouse} - Pointer for mouse, only created lazily on first mouse event, so no mouse is allocated on.
+    // @public {A11yPointer|null} - Pointer for accessibility, only created lazily on first a11y event.
+    this.a11yPointer = null;
+
+    // @public {Mouse|null} - Pointer for mouse, only created lazily on first mouse event, so no mouse is allocated on.
     // tablets.
     this.mouse = null;
 
@@ -496,6 +501,20 @@ define( function( require ) {
         }
       }
     } );
+
+    if ( this.display._accessible ) {
+      var accessibleEventOptions = Features.passive ? { useCapture: false, passive: false } : false;
+
+      this.display.accessibleDOMElement.addEventListener( 'focusin', function( event ) {
+        if ( !self.a11yPointer ) { self.initA11yPointer(); }
+        self.focusIn( event );
+      }, accessibleEventOptions );
+
+      this.display.accessibleDOMElement.addEventListener( 'focusout', function( event ) {
+        if ( !self.a11yPointer ) { self.initA11yPointer(); }
+        self.focusOut( event );
+      }, accessibleEventOptions );
+    }
   }
 
   scenery.register( 'Input', Input );
@@ -740,12 +759,69 @@ define( function( require ) {
     },
 
     /**
+     * Triggers a logical focus event.
+     * @public (scenery-internal)
+     *
+     * @param {DOMEvent} event
+     */
+    focusIn: function( event ) {
+      sceneryLog && sceneryLog.Input && sceneryLog.Input( 'focusIn(' + Input.debugText( null, event ) + ');' );
+      sceneryLog && sceneryLog.Input && sceneryLog.push();
+
+      var trail = this.a11yPointer.updateTrail( this.rootNode, event.target.getAttribute( 'data-trail-id' ) );
+
+      this.dispatchEvent( trail, 'focus', this.a11yPointer, event, false );
+
+      // TODO: emit focusIn emitter? Or is it just called focusEmitter? See #888
+
+      sceneryLog && sceneryLog.Input && sceneryLog.pop();
+    },
+
+    /**
+     * Triggers a logical blur event.
+     * @public (scenery-internal)
+     *
+     * @param {DOMEvent} event
+     */
+    focusOut: function( event ) {
+      sceneryLog && sceneryLog.Input && sceneryLog.Input( 'focusOut(' + Input.debugText( null, event ) + ');' );
+      sceneryLog && sceneryLog.Input && sceneryLog.push();
+
+      // recompute the trail on focusout if necessary - since a blur/focusout may have been initiated from a
+      // focus/focusin listener, it is possible that focusout was called more than once before focusin is called on the
+      // next active element, see https://github.com/phetsims/scenery/issues/898
+      var trail = this.a11yPointer.trail;
+      assert && assert( trail, 'an a11yPointer trail should have been created' );
+
+      if ( assertSlow ) {
+        var newTrail = Trail.fromUniqueId( this.rootNode, event.target.getAttribute( 'data-trail-id' ) );
+        assert( newTrail.equals( this.a11yPointer.trail ), 'focusout target different from focusin target' );
+      }
+      this.dispatchEvent( trail, 'blur', this.a11yPointer, event, false );
+
+      // TODO: emit focusIn emitter? Or is it just called focusEmitter? See #888
+
+      sceneryLog && sceneryLog.Input && sceneryLog.pop();
+    },
+
+    /**
      * Initializes the Mouse object on the first mouse event (this may never happen on touch devices).
      * @private
      */
     initMouse: function() {
       this.mouse = new Mouse();
       this.addPointer( this.mouse );
+    },
+
+    /**
+     * Initializes the accessible pointer object on the first a11y event.
+     * @private
+     */
+    initA11yPointer: function() {
+      this.a11yPointer = new A11yPointer();
+      this.a11yPointer.initializeListeners( this.display );
+
+      this.addPointer( this.a11yPointer );
     },
 
     /**
@@ -1497,7 +1573,7 @@ define( function( require ) {
 
       for ( var i = trail.getLastInputEnabledIndex(); i >= 0; bubbles ? i-- : i = -1 ) {
         var target = trail.nodes[ i ];
-        if ( target.isDisposed() ) {
+        if ( target.isDisposed ) {
           continue;
         }
 

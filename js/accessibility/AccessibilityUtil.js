@@ -71,6 +71,10 @@ define( function( require ) {
   var ARIA_DESCRIBEDBY = 'aria-describedby';
   var ARIA_ACTIVE_DESCENDANT = 'aria-activedescendant';
 
+  // data attribute to flag whether an element is focusable - cannot check tabindex because IE11 and Edge assign
+  // tabIndex=0 internally for all HTML elements, including those that should not receive focus
+  var DATA_FOCUSABLE = 'data-focusable';
+
   // {Array.<String>} attributes that put an ID of another attribute as the value, see https://github.com/phetsims/scenery/issues/819
   var ASSOCIATION_ATTRIBUTES = [ ARIA_LABELLEDBY, ARIA_DESCRIBEDBY, ARIA_ACTIVE_DESCENDANT ];
 
@@ -150,7 +154,7 @@ define( function( require ) {
   }
 
   /**
-   * Get the next or previous focusable element in the parallel DOM, relative to this Node's primarySibling
+   * Get the next or previous focusable element in the parallel DOM, relative to the parent element passed in and
    * depending on the direction. Useful if you need to set focus dynamically or need to prevent default behavior
    * when focus changes. If no next or previous focusable is found, it returns the currently focused element.
    * This function should not be used directly, use getNextFocusable() or getPreviousFocusable() instead.
@@ -207,8 +211,7 @@ define( function( require ) {
       return false;
     }
 
-    // if tabindex is greater than -1, the element is focusable so break
-    return domElement.tabIndex >= 0;
+    return domElement.getAttribute( DATA_FOCUSABLE ) === 'true';
   }
 
   /**
@@ -506,7 +509,8 @@ define( function( require ) {
                        ? document.createElementNS( options.namespace, tagName )
                        : document.createElement( tagName );
 
-      domElement.tabIndex = focusable ? 0 : -1;
+      // set tab index if we are overriding default browser behavior
+      AccessibilityUtil.overrideFocusWithTabIndex( domElement, focusable );
 
       // if transforming the PDOM elements for mobile a11y support, add style attributes to support the transform
       // attribute
@@ -542,6 +546,32 @@ define( function( require ) {
       // NOTE: This does not work on iOS 12.1 Safari.
       // element.style.left = '-9999px';
       // element.style.top = '-9999px';
+    },
+
+    /**
+     * Add a tab index to an element when overriding the default focus behavior for the element. Adding tabindex
+     * to an element can only be done when overriding the default browser behavior because tabindex interferes with
+     * the way JAWS reads through content on Chrome, see https://github.com/phetsims/scenery/issues/893
+     *
+     * If default behavior and focusable align, the tabindex attribute is removed so that can't interfere with a
+     * screen reader.
+     * @public (scenery-internal)
+     *
+     * @param {HTMLElement} element
+     * @param {boolean} focusable
+     */
+    overrideFocusWithTabIndex: function( element, focusable ) {
+      var defaultFocusable = AccessibilityUtil.tagIsDefaultFocusable( element.tagName );
+
+      // only add a tabindex when we are overriding the default focusable bahvior of the browser for the tag name
+      if ( defaultFocusable !== focusable ) {
+        element.tabIndex = focusable ? 0 : -1;
+      }
+      else {
+        element.removeAttribute( 'tabindex' );
+      }
+
+      element.setAttribute( DATA_FOCUSABLE, focusable );
     },
 
     TAGS: {

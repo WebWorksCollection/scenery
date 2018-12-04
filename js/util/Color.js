@@ -164,6 +164,7 @@ define( function( require ) {
    * Convenience function that converts a color spec to a color object if
    * necessary, or simply returns the color object if not.
    * @param {String|Color} colorSpec
+   * @returns {Color}
    */
   Color.toColor = function( colorSpec ) {
     return colorSpec instanceof Color ? colorSpec : new Color( colorSpec );
@@ -342,7 +343,8 @@ define( function( require ) {
 
     // called to update the internally cached CSS value
     updateColor: function() {
-      assert && assert( !this.immutable, 'Cannot modify an immutable color' );
+      assert && assert( !this.immutable,
+        'Cannot modify an immutable color. Likely caused by trying to mutate a color after it was used for a node fill/stroke' );
 
       assert && assert( typeof this.red === 'number' &&
                         typeof this.green === 'number' &&
