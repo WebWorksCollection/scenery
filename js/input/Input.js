@@ -514,6 +514,11 @@ define( function( require ) {
         if ( !self.a11yPointer ) { self.initA11yPointer(); }
         self.focusOut( event );
       }, accessibleEventOptions );
+
+      this.display.accessibleDOMElement.addEventListener( 'keydown', function( event ) {
+        if ( !self.a11yPointer ) { self.initA11yPointer(); }
+        self.keyDown( event );
+      }, accessibleEventOptions );
     }
   }
 
@@ -800,6 +805,21 @@ define( function( require ) {
       this.dispatchEvent( trail, 'blur', this.a11yPointer, event, false );
 
       // TODO: emit focusIn emitter? Or is it just called focusEmitter? See #888
+
+      sceneryLog && sceneryLog.Input && sceneryLog.pop();
+    },
+
+    keyDown: function( event ) {
+      sceneryLog && sceneryLog.Input && sceneryLog.Input( 'keyDown(' + Input.debugText( null, event ) + ');' );
+      sceneryLog && sceneryLog.Input && sceneryLog.push();
+
+      // keydown might come before a focus/focusin event
+      var trail = this.a11yPointer.trail;
+      if ( !trail ) {
+        trail = this.a11yPointer.updateTrail( Trail.fromUniqueId( this.rootNode, event.target.getAttribute( 'data-trail-id' ) ) );
+      }
+
+      this.dispatchEvent( trail, 'keydown', this.a11yPointer, event, false );
 
       sceneryLog && sceneryLog.Input && sceneryLog.pop();
     },

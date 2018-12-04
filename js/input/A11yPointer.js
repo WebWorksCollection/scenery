@@ -10,12 +10,16 @@
 define( require => {
   'use strict';
 
-  var AccessibleInstance = require( 'SCENERY/accessibility/AccessibleInstance' );
-  var Pointer = require( 'SCENERY/input/Pointer' ); // inherits from Pointer
-  var scenery = require( 'SCENERY/scenery' );
-  var Trail = require( 'SCENERY/util/Trail' );
-  // var Display = require( 'SCENERY/display/Display' ); // so requireJS doesn't balk about circular dependency
-  var Focus = require( 'SCENERY/accessibility/Focus' );
+  // modules
+  // const Display = require( 'SCENERY/display/Display' ); // so requireJS doesn't balk about circular dependency
+  const AccessibilityUtil = require( 'SCENERY/accessibility/AccessibilityUtil' );
+  const AccessibleInstance = require( 'SCENERY/accessibility/AccessibleInstance' );
+  const Focus = require( 'SCENERY/accessibility/Focus' );
+  const FullScreen = require( 'SCENERY/util/FullScreen' );
+  const Pointer = require( 'SCENERY/input/Pointer' ); // inherits from Pointer
+  const scenery = require( 'SCENERY/scenery' );
+  const Trail = require( 'SCENERY/util/Trail' );
+  var KeyboardUtil = require( 'SCENERY/accessibility/KeyboardUtil' );
 
   class A11yPointer extends Pointer {
     constructor() {
@@ -28,7 +32,7 @@ define( require => {
 
     /**
      * Set up listeners, attaching blur and focus listeners to the pointer once this A11yPointer has been attached
-     * to a display.
+     * to a display.  
      * @private (scenery-internal)
      * 
      * @param  {Display} display
@@ -48,6 +52,62 @@ define( require => {
         },
         blur: ( event ) => {
           scenery.Display.focus = null;
+        },
+        keydown: ( event ) => {
+          scenery.Display.userGestureEmitter.emit();
+
+          var domEvent = event.domEvent;
+
+          // If navigating in full screen mode, prevent a bug where focus gets lost if fullscreen mode was initiated
+          // from an iframe by keeping focus in the display. getNext/getPreviousFocusable will return active element
+          // if there are no more elements in that direction. See https://github.com/phetsims/scenery/issues/883
+          if ( FullScreen.isFullScreen() && domEvent.keyCode === KeyboardUtil.KEY_TAB ) {
+            var rootElement = display.accessibleDOMElement;
+            var nextElement = domEvent.shiftKey ? AccessibilityUtil.getPreviousFocusable( rootElement ) :
+                                               AccessibilityUtil.getNextFocusable( rootElement );
+            if ( nextElement === domEvent.target ) {
+              domEvent.preventDefault();
+            }
+          }
+
+          // if an accessible node was being interacted with a mouse, or had focus when sim is made inactive, this node
+          // should receive focus upon resuming keyboard navigation
+          if ( display.pointerFocus || display.activeNode ) {
+            var active = display.pointerFocus || display.activeNode;
+            var focusable = active.focusable;
+
+            // if there is a single accessible instance, we can restore focus
+            if ( active.getAccessibleInstances().length === 1 ) {
+
+              // if all ancestors of this node are visible, so is the active node
+              var nodeAndAncestorsVisible = true;
+              var activeTrail = active.accessibleInstances[ 0 ].trail;
+              for ( var i = activeTrail.nodes.length - 1; i >= 0; i-- ) {
+                if ( !activeTrail.nodes[ i ].visible ) {
+                  nodeAndAncestorsVisible = false;
+                  break;
+                }
+              }
+
+              if ( focusable && nodeAndAncestorsVisible ) {
+                if ( domEvent.keyCode === KeyboardUtil.KEY_TAB ) {
+                  active.focus();
+
+                  // now get the previous focusable and focus it so the tab key will focus the active node
+                  var previousFocus = AccessibilityUtil.getPreviousFocusable( display.accessibleDOMElement );
+                  if ( previousFocus.getAttribute( 'data-trail-id' ) === event.trail.getUniqueId() ) {
+                    active.blur();
+                  }
+                  else {
+                    previousFocus.focus();
+                  }
+
+                  display.pointerFocus = null;
+                  display.activeNode = null;
+                }
+              }
+            }
+          }
         }
       } );
     }
