@@ -38,6 +38,8 @@ define( require => {
         focus: () => {
           assert && assert( this.trail, 'trail should have been calculated for the focused node' );
 
+          display.setFocusOverlayVisible( true );
+
           // NOTE: The "root" peer can't be focused (so it doesn't matter if it doesn't have a node).
           if ( this.trail.lastNode().focusable ) {
             scenery.Display.focus = new Focus( display, AccessibleInstance.guessVisualTrail( this.trail, display.rootNode ) );

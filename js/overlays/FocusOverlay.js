@@ -130,6 +130,23 @@ define( function( require ) {
     },
 
     /**
+     * Set visibility of all highlights in this overlay.
+     * @public (scenery-internal)
+     *
+     * @param {boolean} visible
+     */
+    setHighlightsVisible: function( visible ) {
+
+      // parent for most focus highlights
+      this.focusRootNode.visible = visible;
+
+      // if using a layerable focus highlight, it is in a different display and must be hidden individually
+      if ( this.node && this.node.focusHighlightLayerable ) {
+        this.nodeFocusHighlight.visible = visible;
+      }
+    },
+
+    /**
      * Activates the highlight, choosing a mode for whether the highlight will be a shape, node, or bounds.
      * @private
      *

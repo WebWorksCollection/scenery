@@ -1322,6 +1322,11 @@ define( function( require ) {
           if ( !( window.phet && phet.chipper.queryParameters.mobileA11yTest ) ) {
             scenery.Display.focus = null;
           }
+          else {
+
+            // hide the focus highlight without removing focus
+            this.display.setFocusOverlayVisible( false );
+          }
         }
       }
 

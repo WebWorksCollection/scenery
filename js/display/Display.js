@@ -308,6 +308,10 @@ define( function( require ) {
       // navigation
       this.activeNode = null;
 
+      // @private {boolean} - highlights of the FocusOverlay are visible. Visible when interacting with keyboard,
+      // invisible when interacting with mouse
+      this._focusOverlayVisible = false;
+
       // @private - the node that currently has focus when we remove an accessible trail, tracked so that we can
       // restore focus after sorting accessible instances
       this._focusedNodeOnRemoveTrail;
@@ -1652,7 +1656,34 @@ define( function( require ) {
 
     popupRasterization: function() {
       this.foreignObjectRasterization( window.open );
-    }
+    },
+
+    /**
+     * Set the visibility of all highlights in the FocusOverlay. This is useful when switching between mouse and
+     * keyboard input.
+     * @public
+     * 
+     * @param {boolean} visible
+     */
+    setFocusOverlayVisible( visible ) {
+      if ( visible !== this._focusOverlayVisible ) {
+        this._focusOverlayVisible = visible;
+        this._focusOverlay.setHighlightsVisible( visible );
+      }
+    },
+    set focusOverlayVisible( visible ) { this.setFocusOverlayVisible( visible ); },
+
+    /**
+     * Get whether or not focus highlights of the focus overlay are visible.
+     * 
+     * @public
+     * @return {boolean}
+     */
+    getFocusOverlayVisible() {
+      return this._focusOverlayVisible;
+    },
+    get focusOverlayVisible() { return this.getFocusOverlayVisible(); }
+
   }, Events.prototype ), {
     /**
      * Takes a given DOM element, and asynchronously renders it to a string that is a data URL representing an SVG

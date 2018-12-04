@@ -101,6 +101,9 @@ define( function( require ) {
     // CRITICAL - so PDOM elements do not interfere with rest of scenery input
     'pointer-events: none;' +
 
+    // to remove the default focus highlight around HTML elements
+    'outline: none;' +
+
     // So that elements can never be seen visually, can comment this out to "see" transformed elements in the
     // PDOM. Text and Backgrounds of elements are made transparent where possible. Text is made very small so that
     // it doesn't extend into the display. Very low opacity on the root takes care of the rest.
