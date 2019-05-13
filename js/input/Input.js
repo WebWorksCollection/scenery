@@ -784,7 +784,7 @@ define( require => {
      * @param {number} batchType - See BatchedDOMEvent's "enumeration" - TODO: use an actual enumeration
      * @param {function} callback - Parameter types defined by the batchType. See BatchedDOMEvent for details
      * @param {boolean} triggerImmediate - Certain events can force immediate action, since browsers like Chrome
-     *                                     only allow certain operations in the callback for a user gesture (e.g. like
+     *                                     only allow certain operations in the callback function() {}or a user gesture (e.g. like
      *                                     a mouseup to open a window).
      */
     batchEvent( domEvent, batchType, callback, triggerImmediate ) {
@@ -804,9 +804,13 @@ define( require => {
       // http://www.html5rocks.com/en/mobile/touchandmouse/ for more information.
       // Additionally, IE had some issues with skipping prevent default, see
       // https://github.com/phetsims/scenery/issues/464 for mouse handling.
+      // 
+      // NOTE: This also prevents zooming in with the scroll wheel and with pinch. Need to modify this so that it is
+      // like "always prevent default on touch events, unless they might trigger a resize event, and don't prevent
+      // default when using wheel.
       if ( !( this.passiveEvents === true ) && ( callback !== this.mouseDown || platform.ie || platform.edge ) ) {
         // We cannot prevent a passive event, so don't try
-        domEvent.preventDefault();
+        // domEvent.preventDefault();
       }
 
       sceneryLog && sceneryLog.InputEvent && sceneryLog.pop();
@@ -908,6 +912,22 @@ define( require => {
     }
 
     /**
+     * Returns the amount in pixels that the document has been scrolled.
+     *
+     * @param {string} scrollDirection - 'scrollTop' || 'scrollLeft', from DOM spec
+     * @returns {number}
+     */
+    getScrollAmount( scrollDirection ) {
+      assert && assert( scrollDirection === 'scrollTop' || scrollDirection === 'scrollLeft' );
+
+      // most browsers place overflow level at <html> level, except safari which defines it on body
+      const documentElement = document.documentElement;
+      const body = document.body;
+
+      return documentElement[ scrollDirection ] || body[ scrollDirection ];
+    }
+
+    /**
      * Extract a {Vector2} global coordinate point from an arbitrary DOM event.
      * @public (scenery-internal)
      *
@@ -915,7 +935,12 @@ define( require => {
      * @returns {Vector2}
      */
     pointFromEvent( domEvent ) {
-      const position = Vector2.createFromPool( domEvent.clientX, domEvent.clientY );
+
+      // correct by amount of scroll after zooming
+      const scrollHeight = this.getScrollAmount( 'scrollTop' );
+      const scrollWidth = this.getScrollAmount( 'scrollLeft' );
+
+      const position = Vector2.createFromPool( domEvent.clientX + scrollWidth, domEvent.clientY + scrollHeight );
       if ( !this.assumeFullWindow ) {
         const domBounds = this.display.domElement.getBoundingClientRect();
 
@@ -1166,6 +1191,18 @@ define( require => {
       sceneryLog && sceneryLog.Input && sceneryLog.Input( 'touchMove(\'' + id + '\',' + Input.debugText( point, event ) + ');' );
       sceneryLog && sceneryLog.Input && sceneryLog.push();
       this.touchMovedAction.execute( id, point, event );
+
+      // HACKS! If a pointer has any attached listeners it is doing something, so we want to prevent default so that
+      // touch input doesn't scroll the window or attempt to zoom
+      let pointersFree = true;
+      _.each( this.pointers, pointer => {
+        if ( pointer.attachedProperty.get() ) {
+          pointersFree = false;
+          return;
+        }
+      } );
+      if ( !pointersFree ) { event.preventDefault(); }
+
       sceneryLog && sceneryLog.Input && sceneryLog.pop();
     }
 
