@@ -295,6 +295,10 @@ define( function( require ) {
         sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
       },
 
+      interrupt: function( event ) {
+        // this needs to be implemented if this listener is to be attached to a Pointer.
+      },
+
       // mouse/touch move
       move: function( event ) {
         self.draggedAction.execute( event.pointer.point, event );

@@ -52,6 +52,9 @@ define( function( require ) {
     KEY_N: 78,
     KEY_0: 48,
     KEY_9: 57,
+    KEY_EQUALS:187, // beware that "="" and "+" keys share the same keycode, distinguish with shfitKey DOMEvent property
+    KEY_PLUS: 187,
+    KEY_MINUS: 189,
 
     ARROW_KEYS: [ KEY_RIGHT_ARROW, KEY_LEFT_ARROW, KEY_RIGHT_ARROW, KEY_DOWN_ARROW ],
 
@@ -75,6 +78,30 @@ define( function( require ) {
     isWASDKey: function( keyCode ) {
       return ( keyCode === KeyboardUtil.KEY_W || keyCode === KeyboardUtil.KEY_A ||
                keyCode === KeyboardUtil.KEY_S || keyCode === KeyboardUtil.KEY_D );
+    },
+
+    /**
+     * Returns whether or not plus key is pressed down, since equals and plus keys share the same keycode.
+     * 
+     * @param {DOMEvent}  event
+     * @returns {boolean}
+     */
+    isPlusKey: function( event ) {
+
+      // fallback if event.key is not supported, but this only works on US keyboard layouts
+      return event.key === '+' || ( event.shiftKey && event.keyCode === KeyboardUtil.KEY_PLUS );
+    },
+
+    /**
+     * Returns a guess for equals key pressed down since equals and plus keys share the same keycode.
+     * 
+     * @param {DOMEvent} event
+     * @returns {boolean}
+     */
+    isEqualsKey: function( event ) {
+
+      // fallback if event.key is not supported, but this only works on US keyboard layouts
+      return event.key === '=' || ( !event.shiftKey && event.keyCode === KeyboardUtil.KEY_EQUALS );
     }
   };
 

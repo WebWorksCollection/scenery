@@ -62,6 +62,7 @@ define( function( require ) {
   var inherit = require( 'PHET_CORE/inherit' );
   var KeyStateTracker = require( 'SCENERY/accessibility/KeyStateTracker' );
   var Matrix3 = require( 'DOT/Matrix3' );
+  // var PanZoomListener = require( 'SCENERY/listeners/PanZoomListener' );
   var Property = require( 'AXON/Property' );
   var PropertyIO = require( 'AXON/PropertyIO' );
   var Tandem = require( 'TANDEM/Tandem' );
@@ -89,6 +90,7 @@ define( function( require ) {
   var FittedBlockBoundsOverlay = require( 'SCENERY/overlays/FittedBlockBoundsOverlay' );
   var FocusIO = require( 'SCENERY/accessibility/FocusIO' );
   var FocusOverlay = require( 'SCENERY/overlays/FocusOverlay' );
+  // var PanZoomOverlay = require( 'SCENERY/overlays/PanZoomOverlay' );
   var NullableIO = require( 'TANDEM/types/NullableIO' );
   var platform = require( 'PHET_CORE/platform' );
   var PointerAreaOverlay = require( 'SCENERY/overlays/PointerAreaOverlay' );
@@ -136,6 +138,7 @@ define( function( require ) {
       preserveDrawingBuffer: false,
       allowWebGL: true,
       accessibility: true,        // enables accessibility features
+      // panZoom: false,             // enables zoom and magnify of the display through various user input
       isApplication: false,      // adds the aria-role: 'application' when accessibility is enabled
       interactive: true,         // Whether mouse/touch/keyboard inputs are enabled (if input has been added).
 
@@ -185,6 +188,9 @@ define( function( require ) {
 
     // @public (scenery-internal) {boolean} - Whether accessibility is enabled for this particular display.
     this._accessible = options.accessibility;
+
+    // @public (scenery-internal) {boolean} - Whether this display supports zoom and magnify
+    // this._panZoom = options.panZoom;
 
     this._allowWebGL = options.allowWebGL;
 
@@ -272,6 +278,15 @@ define( function( require ) {
 
     // global reference if we have a Display (useful)
     this.scenery = scenery;
+
+    // if ( this._panZoom ) {
+    //   this._panZoomRootNode = new Node();
+    //   this._panZoomOverlay = new PanZoomOverlay( this, this._panZoomRootNode );
+    //   this.addOverlay( this._panZoomOverlay );
+
+    //   this._panZoomListener = new PanZoomListener( this.rootNode );
+    //   this._panZoomOverlay.addInputListener( this._panZoomListener );
+    // }
 
     if ( this.options.accessibility ) {
       if ( this.options.isApplication ) {
@@ -560,6 +575,14 @@ define( function( require ) {
       assert && assert( size.width > 0, 'Display.width should be greater than zero' );
       assert && assert( size.height % 1 === 0, 'Display.height should be an integer' );
       assert && assert( size.height > 0, 'Display.height should be greater than zero' );
+
+      // if ( this._panZoom ) {
+        // this._panZoomListener.setPanBounds( new Bounds2( 0, 0, size.width, size.height ) );
+
+        // const targetBounds = phet.joist.sim.currentScreenProperty.value.view.bounds.union( phet.joist.sim.navigationBar.bounds );
+        // this._panZoomListener.setTargetBounds( targetBounds ); 
+        // this._panZoomListener.setTargetBounds( new Bounds2( 0, 0, size.width, size.height ) );
+      // }
 
       if ( !this._size.equals( size ) ) {
         this._size = size;

@@ -7,12 +7,15 @@
  *
  * TODO: add example usage
  *
+ * TODO: Handle interrupts
+ *
  * @author Jonathan Olson <jonathan.olson@colorado.edu>
  */
 
 define( function( require ) {
   'use strict';
 
+  const KeyboardUtil = require( 'SCENERY/accessibility/KeyboardUtil' );
   var arrayRemove = require( 'PHET_CORE/arrayRemove' );
   var inherit = require( 'PHET_CORE/inherit' );
   var Matrix = require( 'DOT/Matrix' );
@@ -37,7 +40,11 @@ define( function( require ) {
       targetNode: null, // TODO: required? pass in at front
       allowScale: true,
       allowRotation: true,
-      allowMultitouchInterruption: false
+      allowMultitouchInterruption: true,
+
+      // max for scaling
+      minScale: 1, // TODO: values less than 1 are currently not supported
+      maxScale: 5
     }, options );
 
     // TODO: type checks for options
@@ -49,6 +56,8 @@ define( function( require ) {
     this._allowScale = options.allowScale;
     this._allowRotation = options.allowRotation;
     this._allowMultitouchInterruption = options.allowMultitouchInterruption;
+    this._minScale = options.minScale;
+    this._maxScale = options.maxScale;
 
     // @private {Array.<Press>}
     this._presses = [];
@@ -56,7 +65,7 @@ define( function( require ) {
     // @private {Array.<Press>}
     this._backgroundPresses = [];
 
-    // @private
+    // @private - listener attached to a Pointer when a press (logical down) is received on a Node.
     this._pressListener = {
       move: function( event ) {
         sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener pointer move' );
@@ -128,6 +137,68 @@ define( function( require ) {
         sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
       }
     };
+
+    // Listen for the ctrl key on the document
+    // TODO: We couldn't use Display.keyStateTracker for this because that KeyStateTracker isn't updated unless the
+    // PDOM receives the event (focus must be inside PDOM). Should that change? I considered using another
+    // KeyStateTracker here, but it felt very excessive.
+    // TODO: Way to add document keydown listeners to scenery?
+    // TODO: Global KeyStateTracker monotors document key events (rather than Display PDOM)?
+    this.ctrlKeyDown = false;
+    document.addEventListener( 'keydown', ( event ) => {
+      const keyCode = event.keyCode;
+
+      if ( !this.ctrlKeyDown && keyCode === KeyboardUtil.KEY_CTRL ) {
+        this.ctrlKeyDown = true;
+      }
+
+      if ( this.ctrlKeyDown ) {
+
+        // ctrl + equals key also allows zoom on most US keyboard layouts
+        if ( KeyboardUtil.isPlusKey( event ) || KeyboardUtil.isEqualsKey( event ) ) {
+          sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener plus key zoom' );
+          sceneryLog && sceneryLog.InputListener && sceneryLog.push();
+
+          // don't let browser zoom in
+          event.preventDefault();
+
+          // zoom in 10 percent
+          const keyPress = new KeyPress( event, this._targetNode, 1.1 );
+          this.repositionFromKeys( keyPress );
+
+          sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
+        }
+        else if ( keyCode === KeyboardUtil.KEY_MINUS ) {
+          sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener plus key zoom' );
+          sceneryLog && sceneryLog.InputListener && sceneryLog.push();
+
+          // don't let browser zoom out
+          event.preventDefault();
+          
+          // zoom out 10 percent
+          const keyPress = new KeyPress( event, this._targetNode, 0.9 );
+          this.repositionFromKeys( keyPress );
+
+          sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
+        }
+      }
+
+      if ( KeyboardUtil.isArrowKey( keyCode ) ) {
+        sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener arrow key down' );
+        sceneryLog && sceneryLog.InputListener && sceneryLog.push();
+
+        const scale = 1; // no scale change for panning
+        const keyPress = new KeyPress( event, this._targetNode, scale );
+        this.repositionFromKeys( keyPress );
+
+        sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
+      }
+    } );
+    document.addEventListener( 'keyup', ( event ) => {
+      if ( this.ctrlKeyDown && event.keyCode === KeyboardUtil.KEY_CTRL ) {
+        this.ctrlKeyDown = false;
+      }
+    } );
   }
 
   scenery.register( 'MultiListener', MultiListener );
@@ -189,6 +260,75 @@ define( function( require ) {
           this.addBackgroundPress( press );
         }
       }
+
+      sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
+    },
+
+    /**
+     * Input listener, part of the Scenery Input API.
+     *
+     * TODO: should this be attached to the document like the keydown listeners?
+     */
+    wheel: function( event ) {
+      sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener wheel' );
+
+      sceneryLog && sceneryLog.InputListener && sceneryLog.push();
+
+      const wheel = new Wheel( event );
+      this.repositionFromWheel( wheel );
+
+      sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
+    },
+
+    /**
+     * Handle reposition from wheel input, which may zoom or pan, depending on if the ctrl key is pressed down.
+     * 
+     * @param   {Wheel} wheel
+     */
+    repositionFromWheel: function( wheel ) {
+      sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener reposition' );
+      sceneryLog && sceneryLog.InputListener && sceneryLog.push();
+
+      if ( this.ctrlKeyDown ) {
+        const zoomDelta = wheel.up ? 1.1 : 0.9; // zoom in or out 10%
+        this._targetNode.matrix = this.computeTranslationScaleToPointMatrix( wheel.localPoint, wheel.targetPoint, zoomDelta );
+      }
+      else {
+        const translationUnitVector = wheel.right ? new Vector2( -1, 0 ) :
+                                      wheel.left ? new Vector2( 1, 0 ) :
+                                      wheel.down ? new Vector2( 0, -1 ) :
+                                      wheel.up ? new Vector2( 0, 1 ) : null;
+        assert && assert( translationUnitVector !== null, 'wheel received, unable to find translation vector.' );
+
+        this._targetNode.matrix = this.computeTranslationDeltaMatrix( translationUnitVector, 40 );
+      }
+
+      sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
+    },
+
+    /**
+     * From a KeyPress zoom in or out.
+     * per input event.
+     * 
+     * @param  {KeyPress} keyPress
+     */
+    repositionFromKeys: function( keyPress ) {
+      sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener reposition from key press' );
+      sceneryLog && sceneryLog.InputListener && sceneryLog.push();
+
+      const zoomDelta = keyPress.zoom;
+      if ( zoomDelta !== 1 ) {
+        this._targetNode.matrix = this.computeTranslationScaleToPointMatrix( keyPress.localPoint, keyPress.targetPoint, zoomDelta );
+      }
+      else {
+
+        const translationUnitVector = keyPress.right ? new Vector2( -1, 0 ) :
+                                      keyPress.left ? new Vector2( 1, 0 ) :
+                                      keyPress.down ? new Vector2( 0, -1 ) :
+                                      keyPress.up ? new Vector2( 0, 1 ) : null;
+        this._targetNode.matrix = this.computeTranslationDeltaMatrix( translationUnitVector, 40 );
+      }
+
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
     },
@@ -341,8 +481,36 @@ define( function( require ) {
       return Matrix3.translationFromVector( sum.dividedScalar( this._presses.length ) );
     },
 
+    /**
+     * Compute a matrix that will translate the node by a pre-described direction and magnitude.
+     * 
+     * @param   {Vector2} translationVector
+     * @param   {number} magnitude         [description]
+     */
+    computeTranslationDeltaMatrix: function( translationVector, magnitude ) {
+      return Matrix3.translationFromVector( translationVector.withMagnitude( magnitude ) ).timesMatrix( this._targetNode.getMatrix() );
+    },
+
+    /**
+     * Rather than translating and scaling to a point defined by Presses, we translate and scale to a 
+     * predefined point 
+     * @returns {}
+     */
+    computeTranslationScaleToPointMatrix: function( localPoint, targetPoint, zoom ) {
+
+      var translateFromLocal = Matrix3.translation( -localPoint.x, -localPoint.y );
+      var translateToTarget = Matrix3.translation( targetPoint.x, targetPoint.y );
+
+      // assume same scale in both x and y
+      const currentScale = this._targetNode.getScaleVector().x;
+      const newScale = this.limitScale( currentScale * zoom );
+
+      return translateToTarget.timesMatrix( Matrix3.scaling( newScale ) ).timesMatrix( translateFromLocal );
+    },
+
     // @private
     computeTranslationScaleMatrix: function() {
+
       // TODO: minimize closures
       var localPoints = this._presses.map( function( press ) { return press.localPoint; } );
       var targetPoints = this._presses.map( function( press ) { return press.targetPoint; } );
@@ -363,11 +531,23 @@ define( function( require ) {
       targetPoints.forEach( function( targetPoint ) { targetSquaredDistance += targetPoint.distanceSquared( targetCentroid ); } );
 
       var scale = Math.sqrt( targetSquaredDistance / localSquaredDistance );
+      scale = this.limitScale( scale );
 
       var translateToTarget = Matrix3.translation( targetCentroid.x, targetCentroid.y );
       var translateFromLocal = Matrix3.translation( -localCentroid.x, -localCentroid.y );
 
       return translateToTarget.timesMatrix( Matrix3.scaling( scale ) ).timesMatrix( translateFromLocal );
+    },
+
+    /**
+     * Limit the provided scale by constraints of this MultiListener.
+     * @param   {number} scale
+     * @returns {number}
+     */
+    limitScale: function( scale ) {
+      let correctedScale = Math.max( scale, this._minScale );
+      correctedScale = Math.min( correctedScale, this._maxScale );
+      return correctedScale;
     },
 
     // @private
@@ -457,10 +637,59 @@ define( function( require ) {
     recomputeLocalPoint: function() {
       this.localPoint = this.trail.globalToLocalPoint( this.pointer.point );
     },
-    get targetPoint() {
+    getTargetPoint() {
       return this.trail.globalToParentPoint( this.pointer.point );
-    }
+    },
+    get targetPoint() { return this.getTargetPoint(); }
   } );
+
+  class Wheel extends Press {
+
+    /**
+     * @param {Event} event
+     * @param {Node} targetNode
+     */
+    constructor( event, targetNode ) {
+      super( event.pointer, event.trail.subtrailTo( targetNode, false ) );
+
+      this.up = event.domEvent.deltaY < 0;
+      this.down = event.domEvent.deltaY > 0;
+      this.right = event.domEvent.deltaX > 0;
+      this.left = event.domEvent.deltaX < 0;
+    }
+  }
+
+  /**
+   * A KeyPress has no associated trail or pointer since the key press will occur globally without a target. It will
+   * also have no concept of a Pointer.
+   */
+  class KeyPress {
+    constructor( event, targetNode, zoom ) {
+
+      // @private
+      this.targetNode = targetNode;
+      this.zoom = zoom;
+      this.localPoint = null;
+
+      // @public (read-only)
+      this.up = event.keyCode === KeyboardUtil.KEY_UP_ARROW;
+      this.down = event.keyCode === KeyboardUtil.KEY_DOWN_ARROW;
+      this.right = event.keyCode === KeyboardUtil.KEY_RIGHT_ARROW;
+      this.left = event.keyCode === KeyboardUtil.KEY_LEFT_ARROW;
+
+      this.recomputeLocalPoint();
+    }
+
+    recomputeLocalPoint() {
+      this.localPoint = new Vector2( 0, 0 );
+    }
+
+    // from a key press, we will zoom in and out of the upper right corner of the display.
+    get targetPoint() {
+      const displayOrigin = new Vector2( 0, 0 );
+      return this.targetNode.matrix.timesVector2( displayOrigin );
+    }
+  }
 
   return MultiListener;
 } );
