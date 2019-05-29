@@ -23,6 +23,7 @@ define( function( require ) {
   var Mouse = require( 'SCENERY/input/Mouse' );
   var scenery = require( 'SCENERY/scenery' );
   var SingularValueDecomposition = require( 'DOT/SingularValueDecomposition' );
+  var TinyEmitter = require( 'AXON/TinyEmitter' );
   var Vector2 = require( 'DOT/Vector2' );
 
   /**
@@ -298,12 +299,26 @@ define( function( require ) {
                                       wheel.left ? new Vector2( 1, 0 ) :
                                       wheel.down ? new Vector2( 0, -1 ) :
                                       wheel.up ? new Vector2( 0, 1 ) : null;
-        assert && assert( translationUnitVector !== null, 'wheel received, unable to find translation vector.' );
 
-        this._targetNode.matrix = this.computeTranslationDeltaMatrix( translationUnitVector, 40 );
+        // at the end of a wheel event we may receive the event without any direction (deltaX/deltaY)
+        if ( translationUnitVector !==  null ) {
+          this._targetNode.matrix = this.computeTranslationDeltaMatrix( translationUnitVector, 40 );
+        }
       }
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
+    },
+
+    /**
+     * Reposition the target node externally at a custom global point with desired scale.
+     *
+     * @param {} globalPoint - point to zoom in on, in the global coordinate frame
+     * @param {} scale - zoom amount (1.1 would zoom in 10%)
+     */
+    repositionCustom: function( globalPoint, scale ) {
+      const localPoint = this._targetNode.globalToLocalPoint( globalPoint );
+      const targetPoint = this._targetNode.globalToParentPoint( globalPoint );
+      this._targetNode.matrix = this.computeTranslationScaleToPointMatrix( localPoint, targetPoint, scale );
     },
 
     /**

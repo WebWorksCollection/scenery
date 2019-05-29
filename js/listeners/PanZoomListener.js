@@ -16,6 +16,8 @@ define( function( require ) {
   var Bounds2 = require( 'DOT/Bounds2' );
   var inherit = require( 'PHET_CORE/inherit' );
   var MultiListener = require( 'SCENERY/listeners/MultiListener' );
+  var NumberProperty = require( 'AXON/NumberProperty' );
+  var Property = require( 'AXON/Property' );
   var scenery = require( 'SCENERY/scenery' );
 
   /**
@@ -51,6 +53,48 @@ define( function( require ) {
 
     // @private {null|Bounds2} - set of bounds that should fill panBounds - 
     this._targetBounds = options.targetBounds || targetNode.bounds;
+
+    // @public - magnification scale for the model
+    this.magnificationProperty = new NumberProperty( 1 );
+
+    // @public - horizontal scroll amount from panning
+    this.horizontalScrollProperty = new NumberProperty( 0 );
+
+    // @public - vertical scroll amount from panning
+    this.verticalScrollProperty = new NumberProperty( 0 );
+
+    this.relativeHeightVisibleProperty = new NumberProperty( 1 );
+
+    this.relativeWidthVisibleProperty = new NumberProperty( 1 );
+
+    const transformedBounds = this._targetBounds.transformed( this._targetNode.getMatrix() );
+    this.transformedPanBoundsProperty = new Property( transformedBounds );
+
+    // this.magnificationProperty.link( ( magnification ) => {
+    //   console.log( 'magnification: ' + magnification );
+    // } );
+
+    // this.horizontalScrollProperty.link( ( scroll ) => {
+    //   console.log( 'horizontal scroll: ' + scroll );
+    // } );
+
+    // this.verticalScrollProperty.link( ( scroll ) => {
+    //   console.log( 'vertical scroll:' + scroll );
+    // } );
+    
+    // this.relativeWidthVisibleProperty.link( ( percent ) => {
+    //   console.log( 'percentWidthVisible: ' + percent );
+    // } );
+
+    // this.relativeHeightVisibleProperty.link( ( percent ) => {
+    //   console.log( 'percentHeightVisible:' + percent );
+    // } );
+
+    // this.transformedPanBoundsProperty.link( ( bounds ) => {
+    //   console.log( bounds );
+    // } );
+ 
+    
   }
 
   scenery.register( 'PanZoomListener', PanZoomListener );
@@ -68,6 +112,16 @@ define( function( require ) {
 
     repositionFromKeys: function( keyPress ) {
       MultiListener.prototype.repositionFromKeys.call( this, keyPress );
+      this.correctReposition();
+    },
+
+    repositionCustom: function( localPoint, scale ) {
+      MultiListener.prototype.repositionCustom.call( this, localPoint, scale );
+      this.correctReposition();
+    },
+
+    resetTransform: function() {
+      this._targetNode.resetTransform();
       this.correctReposition();
     },
 
@@ -93,6 +147,33 @@ define( function( require ) {
       if ( transformedBounds.bottom < this._panBounds.bottom ) {
         this._targetNode.bottom = this._panBounds.bottom + ( this._targetNode.bottom - transformedBounds.bottom );
       }
+
+      // update the transformed bounds after corrections above as it will be used for calculations
+      const correctedTransformedBounds = this._targetBounds.transformed( this._targetNode.getMatrix() );
+      this.transformedPanBoundsProperty.set( correctedTransformedBounds );
+
+      this.magnificationProperty.set( this._targetNode.getScaleVector().x );
+
+      const totalHorizontalPan = correctedTransformedBounds.getWidth() - this._panBounds.getWidth();
+      const currentHorizontalPan = correctedTransformedBounds.getRight() - this._panBounds.getRight();
+      const horizontalScroll = totalHorizontalPan === 0 ? 0 : 1 - currentHorizontalPan / totalHorizontalPan;
+      this.horizontalScrollProperty.set( horizontalScroll );
+      this.relativeWidthVisibleProperty.set( this._panBounds.getWidth() / correctedTransformedBounds.getWidth() );
+
+      const totalVerticalPan = correctedTransformedBounds.getHeight() - this._panBounds.getHeight();
+      const currentVerticalPan = correctedTransformedBounds.getTop() - this._panBounds.getTop();
+      const verticalScroll = totalVerticalPan === 0 ? 0 : -currentVerticalPan / totalVerticalPan;
+      this.verticalScrollProperty.set( verticalScroll );
+      this.relativeHeightVisibleProperty.set( this._panBounds.getHeight() / correctedTransformedBounds.getHeight() );
+    },
+
+    /**
+     * Get the visible bounds in the global coordinate frame after panning and zooming.
+     *
+     * @returns {}
+     */
+    getVisibleBounds: function() {
+
     },
 
     setPanBounds: function( bounds ) {
