@@ -23,7 +23,6 @@ define( function( require ) {
   var Mouse = require( 'SCENERY/input/Mouse' );
   var scenery = require( 'SCENERY/scenery' );
   var SingularValueDecomposition = require( 'DOT/SingularValueDecomposition' );
-  var TinyEmitter = require( 'AXON/TinyEmitter' );
   var Vector2 = require( 'DOT/Vector2' );
 
   /**
