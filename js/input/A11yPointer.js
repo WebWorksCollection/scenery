@@ -31,11 +31,6 @@ define( require => {
 
       this.initializeListeners();
 
-      // @public (scenery-internal) - Prevent any "trusted" events from being dispatched to the KeyStateTracker. When
-      // true, only scripted events are passed to the keyStateTracker. Otherwise, the modeled keyboard state when using
-      // fuzzBoard will appear broken as both user and KeyboardFuzzer interact with display.
-      this.blockTrustedEvents = false;
-
       // @private {Node|null} - target of a user event, if focus changes in response to keydown listeners, listeners
       // on keyup are prevented because the key press was not intended for the newly focused node.
       // TODO: Can we do this for more than keydown/keyup? See https://github.com/phetsims/scenery/issues/942
@@ -66,19 +61,11 @@ define( require => {
           this.keydownTargetNode = null;
         },
         keydown: ( event ) => {
-          if ( this.blockTrustedEvents && event.domEvent.isTrusted ) {
-            return;
-          }
-          scenery.Display.keyStateTracker.keydownUpdate( event );
 
           // set the target to potentially block keyup events
           this.keydownTargetNode = event.target;
         },
         keyup: ( event ) => {
-          if ( this.blockTrustedEvents && event.domEvent.isTrusted ) {
-            return;
-          }
-          scenery.Display.keyStateTracker.keyupUpdate( event );
 
           // The keyup event was received on a node that didn't receive a keydown event, abort to prevent any other
           // listeners from being called for this event. Done after updating KeyStateTracker so that the global state

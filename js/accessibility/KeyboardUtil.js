@@ -102,6 +102,23 @@ define( function( require ) {
 
       // fallback if event.key is not supported, but this only works on US keyboard layouts
       return event.key === '=' || ( !event.shiftKey && event.keyCode === KeyboardUtil.KEY_EQUALS );
+    },
+
+    /**
+     * Returns true of the keyboard input indicates that a zoom command was initiated. Different keys are checked
+     * on mac devices (which go through the Cmd key) and windows devices (which use the ctrl modifier). The cmd key
+     * is not considered a modifier key so we have to determine whether or not it is down by using KeyStateTracker.
+     * 
+     * @param {KeyStateTracker} keyStateTracker
+     * @param {boolean} zoomIn - do you want to check for zoom in or zoom out?
+     * @returns {boolean}
+     */
+    isZoomCommand: function( event, zoomIn ) {
+
+      // TODO: move to platform.js?
+      const modifierKey = window.navigator.platform.includes( 'Mac' ) ? 'metaKey' : 'ctrlKey';
+      const zoomKey = zoomIn ? KeyboardUtil.KEY_EQUALS : KeyboardUtil.KEY_MINUS;
+      return event[ modifierKey ] && event.keyCode === zoomKey;
     }
   };
 

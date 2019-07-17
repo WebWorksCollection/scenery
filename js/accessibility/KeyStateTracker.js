@@ -31,6 +31,19 @@ define( require => {
       this._disposeKeystateTracker = () => {
         timer.removeListener( stepListener );
       };
+
+      // @private - whether or not this KeyStateTracker is attached to the body.
+      this.attachedToBody = false;
+
+      // @private {null|function} - Listeners potentially attached to the body to update the state of this
+      // KeyStateTracker, see attachToBody()
+      this.bodyKeydownListener = null;
+      this.bodyKeyupListener = null;
+
+      // @public (scenery-internal) - Prevent any "trusted" events from being dispatched to the KeyStateTracker. When
+      // true, only scripted events are passed to the keyStateTracker. Otherwise, the modeled keyboard state when using
+      // fuzzBoard will appear broken as both user and KeyboardFuzzer interact with display.
+      this.blockTrustedEvents = false;
     }
 
     /**
@@ -41,11 +54,10 @@ define( require => {
      * `Node.addInputListener` only supports type properties as event listeners, and not the event keys as
      * prototype methods. Please see https://github.com/phetsims/scenery/issues/851 for more information.
      * @public
-     * @param {Event} event
+     * @param {DOMEvent} domEvent - either because we want to be able to update this KeyStateTracker from native
+     *                               DOM events.
      */
-    keydownUpdate( event ) {
-
-      const domEvent = event.domEvent;
+    keydownUpdate( domEvent ) {
 
       // The dom event might have a modifier key that we weren't able to catch, if that is the case update the keystate.
       // This is likely to happen when pressing browser key commands like "ctrl + tab" to switch tabs.
@@ -124,10 +136,9 @@ define( require => {
      * prototype methods. Please see https://github.com/phetsims/scenery/issues/851 for more information.
      *
      * @public
-     * @param {Event} event
+     * @param {DOMEvent} event
      */
-    keyupUpdate( event ) {
-      const domEvent = event.domEvent;
+    keyupUpdate( domEvent ) {
       const keyCode = domEvent.keyCode;
 
       // correct keystate in case browser didn't receive keydown/keyup events for a modifier key
@@ -287,6 +298,51 @@ define( require => {
           }
         }
       }
+    }
+
+    /**
+     * Add this KeyStateTracker to the DOM body so that it updates whenever the body receives key events. This is
+     * useful if you want to listen to key presses while focus is not yet within the body.
+     * @public
+     */
+    attachToBody() {
+      assert && assert( !this.attachedToBody, 'KeyStateTracker is already attached to body.' );
+
+      this.bodyKeydownListener = event => {
+        if ( this.blockTrustedEvents && event.domEvent.isTrusted ) {
+          return;
+        }
+        scenery.Display.keyStateTracker.keydownUpdate( event );
+      };
+
+      this.bodyKeyupListener = event => {
+        if ( this.blockTrustedEvents && event.domEvent.isTrusted ) {
+          return;
+        }
+        scenery.Display.keyStateTracker.keyupUpdate( event );
+      };
+
+      document.body.addEventListener( 'keydown', this.bodyKeydownListener );
+      document.body.addEventListener( 'keyup', this.bodyKeyupListener );
+
+      this.attachedToBody = true;
+    }
+
+    /**
+     * Detach listeners from the body that would update the state of this KeyStateTracker on key presses.
+     * 
+     * @public
+     */
+    detachFromBody() {
+      assert && assert( this.attachedToBody, 'KeyStateTracker is not attached to body.' );
+
+      document.body.removeEventListener( 'keydown', this.bodyKeydownListener );
+      document.body.removeEventListener( 'keyuop', this.bodyKeyupListener );
+
+      this.bodyKeydownListener = null;
+      this.bodyKeyupListener = null;
+
+      this.attachedToBody = false;
     }
 
     /**

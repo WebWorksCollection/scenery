@@ -138,49 +138,34 @@ define( function( require ) {
       }
     };
 
-    // Listen for the ctrl key on the document
-    // TODO: We couldn't use Display.keyStateTracker for this because that KeyStateTracker isn't updated unless the
-    // PDOM receives the event (focus must be inside PDOM). Should that change? I considered using another
-    // KeyStateTracker here, but it felt very excessive.
-    // TODO: Way to add document keydown listeners to scenery?
-    // TODO: Global KeyStateTracker monotors document key events (rather than Display PDOM)?
-    this.ctrlKeyDown = false;
     document.addEventListener( 'keydown', ( event ) => {
       const keyCode = event.keyCode;
 
-      if ( !this.ctrlKeyDown && keyCode === KeyboardUtil.KEY_CTRL ) {
-        this.ctrlKeyDown = true;
+      if ( KeyboardUtil.isZoomCommand( event, true ) ) {
+        sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener keyboard zoom in' );
+        sceneryLog && sceneryLog.InputListener && sceneryLog.push();
+
+        // don't let browser zoom in
+        event.preventDefault();
+
+        // zoom in 10 percent
+        const keyPress = new KeyPress( event, this._targetNode, 1.1 );
+        this.repositionFromKeys( keyPress );
+
+        sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
       }
+      else if ( KeyboardUtil.isZoomCommand( event, false ) ) {
+        sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener plus key zoom' );
+        sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
-      if ( this.ctrlKeyDown ) {
+        // don't let browser zoom out
+        event.preventDefault();
 
-        // ctrl + equals key also allows zoom on most US keyboard layouts
-        if ( KeyboardUtil.isPlusKey( event ) || KeyboardUtil.isEqualsKey( event ) ) {
-          sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener plus key zoom' );
-          sceneryLog && sceneryLog.InputListener && sceneryLog.push();
+        // zoom out 10 percent
+        const keyPress = new KeyPress( event, this._targetNode, 0.9 );
+        this.repositionFromKeys( keyPress );
 
-          // don't let browser zoom in
-          event.preventDefault();
-
-          // zoom in 10 percent
-          const keyPress = new KeyPress( event, this._targetNode, 1.1 );
-          this.repositionFromKeys( keyPress );
-
-          sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
-        }
-        else if ( keyCode === KeyboardUtil.KEY_MINUS ) {
-          sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener plus key zoom' );
-          sceneryLog && sceneryLog.InputListener && sceneryLog.push();
-
-          // don't let browser zoom out
-          event.preventDefault();
-          
-          // zoom out 10 percent
-          const keyPress = new KeyPress( event, this._targetNode, 0.9 );
-          this.repositionFromKeys( keyPress );
-
-          sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
-        }
+        sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
       }
 
       if ( KeyboardUtil.isArrowKey( keyCode ) ) {
@@ -271,7 +256,6 @@ define( function( require ) {
      */
     wheel: function( event ) {
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener wheel' );
-
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
       const wheel = new Wheel( event );
@@ -289,7 +273,7 @@ define( function( require ) {
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener reposition' );
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
-      if ( this.ctrlKeyDown ) {
+      if ( scenery.Display.keyStateTracker.ctrlKeyDown ) {
         const zoomDelta = wheel.up ? 1.1 : 0.9; // zoom in or out 10%
         this._targetNode.matrix = this.computeTranslationScaleToPointMatrix( wheel.localPoint, wheel.targetPoint, zoomDelta );
       }

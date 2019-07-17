@@ -326,6 +326,16 @@ define( require => {
         phetioDocumentation: 'Emits when the mouse moves out of the display'
       } );
 
+      this.scrollAction = new Action( ( event ) => {
+        if ( !this.mouse ) { this.initMouse(); }
+        this.mouse.scroll( event );
+
+        if ( this.mouse.point ) {
+          const trail = this.rootNode.trailUnderPointer( this.mouse ) || new Trail( this.rootNode );
+          this.dispatchEvent( trail, 'scroll', this.mouse, event, true );
+        }
+      } );
+
       // @private {Action} - Emits to the PhET-iO data stream.
       this.wheelScrolledAction = new Action( event => {
         if ( !this.mouse ) { this.initMouse(); }
@@ -1113,6 +1123,10 @@ define( require => {
       sceneryLog && sceneryLog.Input && sceneryLog.push();
       this.wheelScrolledAction.execute( event );
       sceneryLog && sceneryLog.Input && sceneryLog.pop();
+    }
+
+    scroll( event ) {
+      this.scrollAction.execute( event );
     }
 
     /**
