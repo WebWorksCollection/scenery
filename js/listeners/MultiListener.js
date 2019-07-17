@@ -259,7 +259,7 @@ define( function( require ) {
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
       const wheel = new Wheel( event );
-      this.repositionFromWheel( wheel );
+      this.repositionFromWheel( wheel, event );
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
     },
@@ -269,11 +269,15 @@ define( function( require ) {
      * 
      * @param   {Wheel} wheel
      */
-    repositionFromWheel: function( wheel ) {
+    repositionFromWheel: function( wheel, event ) {
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener reposition' );
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
       if ( scenery.Display.keyStateTracker.ctrlKeyDown ) {
+        
+        // disable browser zoom
+        event.preventDefault();
+
         const zoomDelta = wheel.up ? 1.1 : 0.9; // zoom in or out 10%
         this._targetNode.matrix = this.computeTranslationScaleToPointMatrix( wheel.localPoint, wheel.targetPoint, zoomDelta );
       }
