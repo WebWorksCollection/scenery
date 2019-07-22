@@ -109,7 +109,7 @@ define( function( require ) {
      * on mac devices (which go through the Cmd key) and windows devices (which use the ctrl modifier). The cmd key
      * is not considered a modifier key so we have to determine whether or not it is down by using KeyStateTracker.
      * 
-     * @param {KeyStateTracker} keyStateTracker
+     * @param {DOMEvent} keyStateTracker
      * @param {boolean} zoomIn - do you want to check for zoom in or zoom out?
      * @returns {boolean}
      */
@@ -119,6 +119,19 @@ define( function( require ) {
       const modifierKey = window.navigator.platform.includes( 'Mac' ) ? 'metaKey' : 'ctrlKey';
       const zoomKey = zoomIn ? KeyboardUtil.KEY_EQUALS : KeyboardUtil.KEY_MINUS;
       return event[ modifierKey ] && event.keyCode === zoomKey;
+    },
+
+    /**
+     * Returns true if the keyboard command indicates a "zoom reset". This is ctrl + 0 on Win and cmd + 0 on mac.
+     *
+     * TODO: I suspect that these zoom specific functions should be moved out of KeyboardUtil.js
+     * @param {DOMEvent} event
+     * @returns {boolean}      
+     */
+    isZoomResetCommand: function ( event ) {
+
+      const modifierKey = window.navigator.platform.includes( 'Mac' ) ? 'metaKey' : 'ctrlKey';
+      return event[ modifierKey ] && event.keyCode === KeyboardUtil.KEY_0;
     }
   };
 

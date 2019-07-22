@@ -105,8 +105,8 @@ define( function( require ) {
       this.correctReposition();
     },
 
-    repositionFromWheel: function( wheel ) {
-      MultiListener.prototype.repositionFromWheel.call( this, wheel );
+    repositionFromWheel: function( wheel, event ) {
+      MultiListener.prototype.repositionFromWheel.call( this, wheel, event );
       this.correctReposition();
     },
 
@@ -120,8 +120,12 @@ define( function( require ) {
       this.correctReposition();
     },
 
+    /**
+     * Reset the transform on the target node and make sure that the node is within bounds defined by correctPosition.
+     * @override
+     */
     resetTransform: function() {
-      this._targetNode.resetTransform();
+      MultiListener.prototype.resetTransform.call( this );
       this.correctReposition();
     },
 

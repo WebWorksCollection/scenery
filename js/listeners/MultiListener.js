@@ -167,6 +167,16 @@ define( function( require ) {
 
         sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
       }
+      else if ( KeyboardUtil.isZoomResetCommand( event ) ) {
+        sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener keyboard reset' );
+        sceneryLog && sceneryLog.InputListener && sceneryLog.push();
+
+        // don't let the browser change view
+        event.preventDefault();
+        this.resetTransform();
+
+        sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
+      }
 
       if ( KeyboardUtil.isArrowKey( keyCode ) ) {
         sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener arrow key down' );
@@ -276,7 +286,7 @@ define( function( require ) {
       if ( scenery.Display.keyStateTracker.ctrlKeyDown ) {
         
         // disable browser zoom
-        event.preventDefault();
+        event.domEvent.preventDefault();
 
         const zoomDelta = wheel.up ? 1.1 : 0.9; // zoom in or out 10%
         this._targetNode.matrix = this.computeTranslationScaleToPointMatrix( wheel.localPoint, wheel.targetPoint, zoomDelta );
@@ -299,13 +309,20 @@ define( function( require ) {
     /**
      * Reposition the target node externally at a custom global point with desired scale.
      *
-     * @param {} globalPoint - point to zoom in on, in the global coordinate frame
-     * @param {} scale - zoom amount (1.1 would zoom in 10%)
+     * @param {Vector2} globalPoint - point to zoom in on, in the global coordinate frame
+     * @param {number} scale - zoom amount (1.1 would zoom in 10%)
      */
     repositionCustom: function( globalPoint, scale ) {
       const localPoint = this._targetNode.globalToLocalPoint( globalPoint );
       const targetPoint = this._targetNode.globalToParentPoint( globalPoint );
       this._targetNode.matrix = this.computeTranslationScaleToPointMatrix( localPoint, targetPoint, scale );
+    },
+
+    /**
+     * Reset the transform on the target node.
+     */
+    resetTransform() {
+      this._targetNode.resetTransform();
     },
 
     /**
