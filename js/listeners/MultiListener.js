@@ -44,7 +44,7 @@ define( function( require ) {
 
       // max for scaling
       minScale: 1, // TODO: values less than 1 are currently not supported
-      maxScale: 5
+      maxScale: 4
     }, options );
 
     // TODO: type checks for options
@@ -268,7 +268,7 @@ define( function( require ) {
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener wheel' );
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
-      const wheel = new Wheel( event );
+      const wheel = new Wheel( event, this._targetNode );
       this.repositionFromWheel( wheel, event );
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
