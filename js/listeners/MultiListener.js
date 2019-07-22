@@ -68,12 +68,14 @@ define( function( require ) {
     // @private - listener attached to a Pointer when a press (logical down) is received on a Node.
     this._pressListener = {
       move: function( event ) {
-        sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener pointer move' );
-        sceneryLog && sceneryLog.InputListener && sceneryLog.push();
+        if ( event.pointer.type === 'touch' ) {
+          sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener pointer move' );
+          sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
-        self.movePress( self.findPress( event.pointer ) );
-
-        sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
+          self.movePress( self.findPress( event.pointer ) );
+          
+          sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
+        }
       },
 
       up: function( event ) {
