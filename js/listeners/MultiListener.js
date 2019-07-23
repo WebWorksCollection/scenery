@@ -195,18 +195,16 @@ define( function( require ) {
       }
 
       if ( KeyboardUtil.isArrowKey( keyCode ) ) {
-        sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener arrow key down' );
-        sceneryLog && sceneryLog.InputListener && sceneryLog.push();
+        const focus = scenery.Display.focusedNode.value;
+        if ( _.union( _.keys( focus.eventListeners ), [ 'keydown', 'keyup' ] ).length === 0 ) {
+          sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener arrow key down' );
+          sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
-        const keyPress = new KeyPress( event, this._targetNode, this.getCurrentScale() );
-        this.repositionFromKeys( keyPress );
+          const keyPress = new KeyPress( event, this._targetNode, this.getCurrentScale() );
+          this.repositionFromKeys( keyPress );
 
-        sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
-      }
-    } );
-    document.addEventListener( 'keyup', ( event ) => {
-      if ( this.ctrlKeyDown && event.keyCode === KeyboardUtil.KEY_CTRL ) {
-        this.ctrlKeyDown = false;
+          sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
+        }
       }
     } );
   }
