@@ -198,8 +198,7 @@ define( function( require ) {
         sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener arrow key down' );
         sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
-        const scale = 1; // no scale change for panning
-        const keyPress = new KeyPress( event, this._targetNode, scale );
+        const keyPress = new KeyPress( event, this._targetNode, this.getCurrentScale() );
         this.repositionFromKeys( keyPress );
 
         sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
@@ -562,8 +561,8 @@ define( function( require ) {
     /**
      * Compute a matrix that will translate the node by a pre-described direction and magnitude.
      * 
-     * @param   {Vector2} translationVector
-     * @param   {number} magnitude         [description]
+     * @param {Vector2} translationVector
+     * @param {number} magnitude - magnitude of the translation vector
      */
     computeTranslationDeltaMatrix: function( translationVector, magnitude ) {
       return Matrix3.translationFromVector( translationVector.withMagnitude( magnitude ) ).timesMatrix( this._targetNode.getMatrix() );
