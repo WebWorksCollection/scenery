@@ -25,8 +25,6 @@ define( function( require ) {
   var SingularValueDecomposition = require( 'DOT/SingularValueDecomposition' );
   var Vector2 = require( 'DOT/Vector2' );
 
-  const discreteScales = [ 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4 ];
-
   /**
    * @constructor
    *
@@ -44,12 +42,15 @@ define( function( require ) {
       allowRotation: true,
       allowMultitouchInterruption: true,
 
-      // max for scaling
+      // limits for scaling
       minScale: 1, // TODO: values less than 1 are currently not supported
       maxScale: 4
     }, options );
 
     // TODO: type checks for options
+    
+    // @private {Array.<number>} - scale can change in discrete jumps from certain types of input
+    this.discreteScales = calculateDiscreteScales( options.minScale, options.maxScale );
 
     this._targetNode = targetNode;
 
@@ -219,7 +220,7 @@ define( function( require ) {
 
 
       const currentScale = this.getCurrentScale();
-      const atDiscreteScale = _.includes( discreteScales, currentScale );
+      const atDiscreteScale = _.includes( this.discreteScales, currentScale );
 
       let discreteScale = currentScale;
 
@@ -227,8 +228,8 @@ define( function( require ) {
         const indexDelta = zoomIn ? 1 : -1;
         const nextIndex = this.discreteScaleIndex + indexDelta;
 
-        if ( nextIndex >= 0 && nextIndex < discreteScales.length ) {
-          const scale = discreteScales[ nextIndex ];
+        if ( nextIndex >= 0 && nextIndex < this.discreteScales.length ) {
+          const scale = this.discreteScales[ nextIndex ];
           discreteScale = scale;
 
           // const keyPress = new KeyPress( event, this._targetNode, scale );
@@ -345,10 +346,8 @@ define( function( require ) {
         // disable browser zoom
         event.domEvent.preventDefault();
 
-
-
-        const zoomDelta = wheel.up ? 1.1 : 0.9; // zoom in or out 10%
-        this._targetNode.matrix = this.computeTranslationScaleToPointMatrix( wheel.localPoint, wheel.targetPoint, zoomDelta );
+        const nextScale = this.getNextDiscreteScale( event, this._targetNode, wheel.up );
+        this._targetNode.matrix = this.computeTranslationScaleToPointMatrix( wheel.localPoint, wheel.targetPoint, nextScale );
       }
       else {
         const translationUnitVector = wheel.right ? new Vector2( -1, 0 ) :
@@ -628,26 +627,6 @@ define( function( require ) {
       return correctedScale;
     },
 
-    calculateDiscreteScales: function( minScale, maxScale ) {
-
-      // will take this many key presses to reach maximum scale from minimum scale
-      const steps = 8;
-
-      // break the range from min to max scale into steps, then exponentiate
-      const discreteScales = [];
-      for ( let i = 0; i < steps; i++ ) {
-        discreteScales[ i ] = ( maxScale - minScale ) / steps * ( i * i  );
-      }
-
-      // normalize steps back into range of the min and max scale for this listener
-      const discreteScalesMax = discreteScales[ steps - 1 ];
-      for ( let i = 0; i < discreteScales.length; i++ ) {
-        discreteScales[ i ] = minScale + discreteScales[ i ] * ( maxScale - minScale ) / discreteScalesMax;
-      }
-
-      return discreteScales;
-    },
-
     /**
      * Get the current scale on the target node, assuming scale is the same in x and y.
      * 
@@ -659,20 +638,6 @@ define( function( require ) {
       // assume same scale in both x and y
       return this._targetNode.getScaleVector().x;
     },
-
-    /**
-     * Get a scale delta that might have come from a single key or mouse command. Non linear, so that the further
-     * zoomed in we are, the larger scale changes. This allows greater magnification with fewer key presses, and
-     * is typical behavior for most browsers.
-     * 
-     * @returns {number}
-     */
-    // getNextDiscreteScale: function() {
-    //   const currentScale = this.getCurrentScale();
-    //   const delta = -0.5 + ( 0.604 * currentScale ) - (0.0604 * currentScale * currentScale);
-    //   console.log( delta );
-    //   return 1 + delta;
-    // },
 
     // @private
     computeTranslationRotationMatrix: function() {
@@ -813,6 +778,35 @@ define( function( require ) {
       const displayOrigin = new Vector2( 0, 0 );
       return this.targetNode.matrix.timesVector2( displayOrigin );
     }
+  }
+
+  /**
+   * Helper function, calculates discrete scales between min and max scale limits. Creates exponential steps between
+   * min and max so that you zoom in from high zoom reaches the max faster with fewer key presses. This is standard
+   * behavior for browser zoom.
+   * 
+   * @param {number} minScale
+   * @param {number} maxScale
+   * @returns {number}
+   */
+  function calculateDiscreteScales( minScale, maxScale ) {
+
+    // will take this many key presses to reach maximum scale from minimum scale
+    const steps = 8;
+
+    // break the range from min to max scale into steps, then exponentiate
+    const discreteScales = [];
+    for ( let i = 0; i < steps; i++ ) {
+      discreteScales[ i ] = ( maxScale - minScale ) / steps * ( i * i  );
+    }
+
+    // normalize steps back into range of the min and max scale for this listener
+    const discreteScalesMax = discreteScales[ steps - 1 ];
+    for ( let i = 0; i < discreteScales.length; i++ ) {
+      discreteScales[ i ] = minScale + discreteScales[ i ] * ( maxScale - minScale ) / discreteScalesMax;
+    }
+
+    return discreteScales;
   }
 
   return MultiListener;
