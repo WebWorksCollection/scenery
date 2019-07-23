@@ -25,6 +25,8 @@ define( function( require ) {
   var SingularValueDecomposition = require( 'DOT/SingularValueDecomposition' );
   var Vector2 = require( 'DOT/Vector2' );
 
+  const discreteScales = [ 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4 ];
+
   /**
    * @constructor
    *
@@ -51,6 +53,8 @@ define( function( require ) {
 
     this._targetNode = targetNode;
 
+    this.discreteScaleIndex = 0;
+
     this._mouseButton = options.mouseButton;
     this._pressCursor = options.pressCursor;
     this._allowScale = options.allowScale;
@@ -73,7 +77,7 @@ define( function( require ) {
           sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
           self.movePress( self.findPress( event.pointer ) );
-          
+
           sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
         }
       },
@@ -150,9 +154,13 @@ define( function( require ) {
         // don't let browser zoom in
         event.preventDefault();
 
-        // zoom in 10 percent
-        const keyPress = new KeyPress( event, this._targetNode, 1.1 );
-        this.repositionFromKeys( keyPress );
+        // discrete zoom in, snapping to nearest zoom in list of discrete steps
+        const nextScale = this.getNextDiscreteScale( event, this._targetNode, true );
+
+        if ( nextScale !== this.getCurrentScale() ) {
+          const keyPress = new KeyPress( event, this._targetNode, nextScale );
+          this.repositionFromKeys( keyPress );
+        }
 
         sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
       }
@@ -164,8 +172,13 @@ define( function( require ) {
         event.preventDefault();
 
         // zoom out 10 percent
-        const keyPress = new KeyPress( event, this._targetNode, 0.9 );
-        this.repositionFromKeys( keyPress );
+        // this.discreteZoom( event, this.targetNode, false );
+        const nextScale = this.getNextDiscreteScale( event, this._targetNode, false );
+
+        if ( nextScale !== this.getCurrentScale() ) {
+          const keyPress = new KeyPress( event, this._targetNode, nextScale );
+          this.repositionFromKeys( keyPress );
+        }
 
         sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
       }
@@ -201,6 +214,48 @@ define( function( require ) {
   scenery.register( 'MultiListener', MultiListener );
 
   inherit( Object, MultiListener, {
+
+    getNextDiscreteScale: function( event, target, zoomIn ) {
+
+
+      const currentScale = this.getCurrentScale();
+      const atDiscreteScale = _.includes( discreteScales, currentScale );
+
+      let discreteScale = currentScale;
+
+      if ( atDiscreteScale && currentScale ) {
+        const indexDelta = zoomIn ? 1 : -1;
+        const nextIndex = this.discreteScaleIndex + indexDelta;
+
+        if ( nextIndex >= 0 && nextIndex < discreteScales.length ) {
+          const scale = discreteScales[ nextIndex ];
+          discreteScale = scale;
+
+          // const keyPress = new KeyPress( event, this._targetNode, scale );
+          // this.repositionFromKeys( keyPress );
+
+          this.discreteScaleIndex = nextIndex;
+        }
+      }
+      // else {
+      //   let distance = Number.POSITIVE_INFINITY;
+      //   let closestScaleIndex = null;
+      //   for ( let i = 0; i < discreteScales.length; i++ ) {
+      //     let newDistance = discreteScales[ i ] - currentScale;
+      //     if ( newDistance < distance ) {
+      //       distance = newDistance;
+      //       closestScaleIndex = i;
+      //     }
+      //   }
+
+      //   console.log( closestScaleIndex );
+      // }
+
+      // const keyPress = new KeyPress( event, this._targetNode, 1 + zoomDelta );
+      // this.repositionFromKeys( keyPress );
+      
+      return discreteScale;
+    },
 
     findPress: function( pointer ) {
       for ( var i = 0; i < this._presses.length; i++ ) {
@@ -290,6 +345,8 @@ define( function( require ) {
         // disable browser zoom
         event.domEvent.preventDefault();
 
+
+
         const zoomDelta = wheel.up ? 1.1 : 0.9; // zoom in or out 10%
         this._targetNode.matrix = this.computeTranslationScaleToPointMatrix( wheel.localPoint, wheel.targetPoint, zoomDelta );
       }
@@ -337,9 +394,10 @@ define( function( require ) {
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener reposition from key press' );
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
-      const zoomDelta = keyPress.zoom;
-      if ( zoomDelta !== 1 ) {
-        this._targetNode.matrix = this.computeTranslationScaleToPointMatrix( keyPress.localPoint, keyPress.targetPoint, zoomDelta );
+      const newScale = keyPress.scale;
+      const currentScale = this.getCurrentScale();
+      if ( newScale !== currentScale ) {
+        this._targetNode.matrix = this.computeTranslationScaleToPointMatrix( keyPress.localPoint, keyPress.targetPoint, newScale );
       }
       else {
 
@@ -517,14 +575,13 @@ define( function( require ) {
      * predefined point 
      * @returns {}
      */
-    computeTranslationScaleToPointMatrix: function( localPoint, targetPoint, zoom ) {
+    computeTranslationScaleToPointMatrix: function( localPoint, targetPoint, scale ) {
 
       var translateFromLocal = Matrix3.translation( -localPoint.x, -localPoint.y );
       var translateToTarget = Matrix3.translation( targetPoint.x, targetPoint.y );
 
       // assume same scale in both x and y
-      const currentScale = this._targetNode.getScaleVector().x;
-      const newScale = this.limitScale( currentScale * zoom );
+      const newScale = this.limitScale( scale );
 
       return translateToTarget.timesMatrix( Matrix3.scaling( newScale ) ).timesMatrix( translateFromLocal );
     },
@@ -570,6 +627,52 @@ define( function( require ) {
       correctedScale = Math.min( correctedScale, this._maxScale );
       return correctedScale;
     },
+
+    calculateDiscreteScales: function( minScale, maxScale ) {
+
+      // will take this many key presses to reach maximum scale from minimum scale
+      const steps = 8;
+
+      // break the range from min to max scale into steps, then exponentiate
+      const discreteScales = [];
+      for ( let i = 0; i < steps; i++ ) {
+        discreteScales[ i ] = ( maxScale - minScale ) / steps * ( i * i  );
+      }
+
+      // normalize steps back into range of the min and max scale for this listener
+      const discreteScalesMax = discreteScales[ steps - 1 ];
+      for ( let i = 0; i < discreteScales.length; i++ ) {
+        discreteScales[ i ] = minScale + discreteScales[ i ] * ( maxScale - minScale ) / discreteScalesMax;
+      }
+
+      return discreteScales;
+    },
+
+    /**
+     * Get the current scale on the target node, assuming scale is the same in x and y.
+     * 
+     * @param {number} scale
+     * @returns {number}
+     */
+    getCurrentScale: function( scale ) {
+
+      // assume same scale in both x and y
+      return this._targetNode.getScaleVector().x;
+    },
+
+    /**
+     * Get a scale delta that might have come from a single key or mouse command. Non linear, so that the further
+     * zoomed in we are, the larger scale changes. This allows greater magnification with fewer key presses, and
+     * is typical behavior for most browsers.
+     * 
+     * @returns {number}
+     */
+    // getNextDiscreteScale: function() {
+    //   const currentScale = this.getCurrentScale();
+    //   const delta = -0.5 + ( 0.604 * currentScale ) - (0.0604 * currentScale * currentScale);
+    //   console.log( delta );
+    //   return 1 + delta;
+    // },
 
     // @private
     computeTranslationRotationMatrix: function() {
@@ -685,11 +788,11 @@ define( function( require ) {
    * also have no concept of a Pointer.
    */
   class KeyPress {
-    constructor( event, targetNode, zoom ) {
+    constructor( event, targetNode, scale ) {
 
       // @private
       this.targetNode = targetNode;
-      this.zoom = zoom;
+      this.scale = scale;
       this.localPoint = null;
 
       // @public (read-only)
