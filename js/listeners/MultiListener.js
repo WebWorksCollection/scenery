@@ -15,6 +15,7 @@
 define( function( require ) {
   'use strict';
 
+  const AccessibilityUtil = require( 'SCENERY/accessibility/AccessibilityUtil' );
   const KeyboardUtil = require( 'SCENERY/accessibility/KeyboardUtil' );
   var arrayRemove = require( 'PHET_CORE/arrayRemove' );
   var inherit = require( 'PHET_CORE/inherit' );
@@ -48,7 +49,7 @@ define( function( require ) {
     }, options );
 
     // TODO: type checks for options
-    
+
     // @private {Array.<number>} - scale can change in discrete jumps from certain types of input
     this.discreteScales = calculateDiscreteScales( options.minScale, options.maxScale );
 
@@ -195,8 +196,15 @@ define( function( require ) {
       }
 
       if ( KeyboardUtil.isArrowKey( keyCode ) ) {
-        const focus = scenery.Display.focusedNode.value;
-        if ( _.union( _.keys( focus.eventListeners ), [ 'keydown', 'keyup' ] ).length === 0 ) {
+        const focusTrail = scenery.Display.focusProperty.get().trail;
+        const focusNode = focusTrail.lastNode();
+
+        // for now, we disable panning with a keyboard if the element by default uses arrow keys for interaction
+        // OR the node has any keydown/keyup listeners
+        const focusHasKeyListeners = this.hasKeyListeners( focusTrail );
+        const elementUsesKeys = _.includes( AccessibilityUtil.ELEMENTS_USE_ARROW_KEYS, focusNode.tagName.toUpperCase() );
+
+        if ( focusTrail === null || ( !focusHasKeyListeners && !elementUsesKeys ) ) {
           sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener arrow key down' );
           sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
@@ -213,8 +221,38 @@ define( function( require ) {
 
   inherit( Object, MultiListener, {
 
-    getNextDiscreteScale: function( event, target, zoomIn ) {
+    /**
+     * Returns true if the provided trail has any listeners that use keydown or keyup. If we find such a listener
+     * we want to prevent panning with a keyboard. Excludes this listener in the search, and stops searching once we
+     * hit it.
+     * @param {Trail}  trail
+     * @returns {boolean}
+     */
+    hasKeyListeners: function( trail ) {
+      let hasKeyListeners = false;
+      let foundThisListener = false;
 
+      // search backwards because it is most likely that nodes adjacent to the focus have a keydown/keyup listener,
+      // and so we can stop searching when we find this MultiListener
+      for ( let i = trail.length - 1; i >= 0; i-- ) {
+        const node = trail.nodes[ i ];
+        hasKeyListeners = _.some( node.inputListeners, ( listener ) => {
+          if ( !foundThisListener && listener === this) {
+            foundThisListener = true;
+          }
+          const hasListeners = _.intersection( _.keys( listener ), [ 'keydown', 'keyup' ] ).length > 0;
+
+          return ( !foundThisListener && hasListeners );
+        } );
+
+        // don't keep searching if we find this listener or any with the above listeners
+        if ( hasKeyListeners || foundThisListener ) { break; }
+      }
+
+      return hasKeyListeners;
+    },
+
+    getNextDiscreteScale: function( event, target, zoomIn ) {
 
       const currentScale = this.getCurrentScale();
       const atDiscreteScale = _.includes( this.discreteScales, currentScale );
@@ -251,7 +289,7 @@ define( function( require ) {
 
       // const keyPress = new KeyPress( event, this._targetNode, 1 + zoomDelta );
       // this.repositionFromKeys( keyPress );
-      
+
       return discreteScale;
     },
 
@@ -331,7 +369,7 @@ define( function( require ) {
 
     /**
      * Handle reposition from wheel input, which may zoom or pan, depending on if the ctrl key is pressed down.
-     * 
+     *
      * @param   {Wheel} wheel
      */
     repositionFromWheel: function( wheel, event ) {
@@ -339,7 +377,7 @@ define( function( require ) {
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
       if ( scenery.Display.keyStateTracker.ctrlKeyDown ) {
-        
+
         // disable browser zoom
         event.domEvent.preventDefault();
 
@@ -383,7 +421,7 @@ define( function( require ) {
     /**
      * From a KeyPress zoom in or out.
      * per input event.
-     * 
+     *
      * @param  {KeyPress} keyPress
      */
     repositionFromKeys: function( keyPress ) {
@@ -558,7 +596,7 @@ define( function( require ) {
 
     /**
      * Compute a matrix that will translate the node by a pre-described direction and magnitude.
-     * 
+     *
      * @param {Vector2} translationVector
      * @param {number} magnitude - magnitude of the translation vector
      */
@@ -567,8 +605,8 @@ define( function( require ) {
     },
 
     /**
-     * Rather than translating and scaling to a point defined by Presses, we translate and scale to a 
-     * predefined point 
+     * Rather than translating and scaling to a point defined by Presses, we translate and scale to a
+     * predefined point
      * @returns {}
      */
     computeTranslationScaleToPointMatrix: function( localPoint, targetPoint, scale ) {
@@ -626,7 +664,7 @@ define( function( require ) {
 
     /**
      * Get the current scale on the target node, assuming scale is the same in x and y.
-     * 
+     *
      * @param {number} scale
      * @returns {number}
      */
@@ -781,7 +819,7 @@ define( function( require ) {
    * Helper function, calculates discrete scales between min and max scale limits. Creates exponential steps between
    * min and max so that you zoom in from high zoom reaches the max faster with fewer key presses. This is standard
    * behavior for browser zoom.
-   * 
+   *
    * @param {number} minScale
    * @param {number} maxScale
    * @returns {number}

@@ -63,6 +63,10 @@ define( function( require ) {
   // these elements, not necessary what is legal html.
   var ELEMENTS_WITHOUT_CLOSING_TAG = [ INPUT_TAG ];
 
+  // these elements utilize the arrow keys by default and should prevent global arrow key behavior (such as panning
+  // from PanZoomListener).
+  var ELEMENTS_USE_ARROW_KEYS = [ INPUT_TAG, TEXTAREA_TAG, SELECT_TAG ];
+
   // valid DOM events that the display adds listeners to. For a list of scenery events that support a11y features
   // see Input.A11Y_EVENT_TYPES
   var DOM_EVENTS = [ 'focusin', 'focusout', 'input', 'change', 'click', 'keydown', 'keyup' ];
@@ -536,6 +540,10 @@ define( function( require ) {
 
     // these elements are typically associated with forms, and support certain attributes
     FORM_ELEMENTS: [ INPUT_TAG, BUTTON_TAG, TEXTAREA_TAG, SELECT_TAG, OPTGROUP_TAG, DATALIST_TAG, OUTPUT_TAG, A_TAG ],
+
+    // these elements generally use the arrow keys and so global keyboard behavior such as panning should be
+    // disabled while they are active
+    ELEMENTS_USE_ARROW_KEYS: ELEMENTS_USE_ARROW_KEYS,
 
     // default tags for html elements of the Node.
     DEFAULT_CONTAINER_TAG_NAME: DIV_TAG,
