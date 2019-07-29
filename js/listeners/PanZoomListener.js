@@ -121,6 +121,18 @@ define( function( require ) {
     },
 
     /**
+     * Pan in a direction specified by deltaVector.
+     * @public
+     *
+     * @param {Vector2} deltaVector
+     */
+    panDelta: function( deltaVector ) {
+      const targetPoint = this._targetNode.globalToParentPoint( this.panBounds.center );
+      const sourcePoint = targetPoint.plus( deltaVector );
+      this.translateToTarget( sourcePoint, targetPoint );
+    },
+
+    /**
      * Reset the transform on the target node and make sure that the node is within bounds defined by correctPosition.
      * @override
      */
