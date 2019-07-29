@@ -196,15 +196,22 @@ define( function( require ) {
       }
 
       if ( KeyboardUtil.isArrowKey( keyCode ) ) {
-        const focusTrail = scenery.Display.focusProperty.get().trail;
-        const focusNode = focusTrail.lastNode();
+        const displayFocus = scenery.Display.focusProperty.get();
 
         // for now, we disable panning with a keyboard if the element by default uses arrow keys for interaction
         // OR the node has any keydown/keyup listeners
-        const focusHasKeyListeners = this.hasKeyListeners( focusTrail );
-        const elementUsesKeys = _.includes( AccessibilityUtil.ELEMENTS_USE_ARROW_KEYS, focusNode.tagName.toUpperCase() );
+        let focusHasKeyListeners = false;
+        let elementUsesKeys = false;
+        if ( displayFocus ) {
 
-        if ( focusTrail === null || ( !focusHasKeyListeners && !elementUsesKeys ) ) {
+          const focusTrail = scenery.Display.focusProperty.get().trail;
+          const focusNode = focusTrail.lastNode();
+
+          focusHasKeyListeners = this.hasKeyListeners( focusTrail );
+          elementUsesKeys = _.includes( AccessibilityUtil.ELEMENTS_USE_ARROW_KEYS, focusNode.tagName.toUpperCase() );
+        }
+
+        if ( displayFocus === null || ( !focusHasKeyListeners && !elementUsesKeys ) ) {
           sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener arrow key down' );
           sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
@@ -400,15 +407,20 @@ define( function( require ) {
     },
 
     /**
-     * Reposition the target node externally at a custom global point with desired scale.
+     * Translate the targetNode from a local point to a target point. Both points should be in the global coordinate
+     * frame.
+     * @public
      *
-     * @param {Vector2} globalPoint - point to zoom in on, in the global coordinate frame
-     * @param {number} scale - zoom amount (1.1 would zoom in 10%)
+     * @param {Vector} initialPoint - in global coordinate frame, source position
+     * @param {Vector2} targetPoint - in global coordinate frame, target position
      */
-    repositionCustom: function( globalPoint, scale ) {
-      const localPoint = this._targetNode.globalToLocalPoint( globalPoint );
-      const targetPoint = this._targetNode.globalToParentPoint( globalPoint );
-      this._targetNode.matrix = this.computeTranslationScaleToPointMatrix( localPoint, targetPoint, scale );
+    translateToTarget: function( initialPoint, targetPoint ) {
+
+      // TODO: scratch things?
+      const singleInitialPoint = this._targetNode.globalToParentPoint( initialPoint );
+      const singleTargetPoint = this._targetNode.globalToParentPoint( targetPoint );
+      var delta = singleTargetPoint.minus( singleInitialPoint );
+      this._targetNode.matrix = Matrix3.translationFromVector( delta ).timesMatrix( this._targetNode.getMatrix() );
     },
 
     /**

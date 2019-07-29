@@ -51,7 +51,7 @@ define( function( require ) {
     // @private {Bounds2} - bounds for the panning area, this area will be fully filled with target content at all times
     this._panBounds = options.panBounds;
 
-    // @private {null|Bounds2} - set of bounds that should fill panBounds - 
+    // @private {null|Bounds2} - set of bounds that should fill panBounds -
     this._targetBounds = options.targetBounds || targetNode.bounds;
 
     // @public - magnification scale for the model
@@ -70,31 +70,15 @@ define( function( require ) {
     const transformedBounds = this._targetBounds.transformed( this._targetNode.getMatrix() );
     this.transformedPanBoundsProperty = new Property( transformedBounds );
 
-    // this.magnificationProperty.link( ( magnification ) => {
-    //   console.log( 'magnification: ' + magnification );
-    // } );
-
-    // this.horizontalScrollProperty.link( ( scroll ) => {
-    //   console.log( 'horizontal scroll: ' + scroll );
-    // } );
-
-    // this.verticalScrollProperty.link( ( scroll ) => {
-    //   console.log( 'vertical scroll:' + scroll );
-    // } );
-    
-    // this.relativeWidthVisibleProperty.link( ( percent ) => {
-    //   console.log( 'percentWidthVisible: ' + percent );
-    // } );
-
-    // this.relativeHeightVisibleProperty.link( ( percent ) => {
-    //   console.log( 'percentHeightVisible:' + percent );
-    // } );
-
-    // this.transformedPanBoundsProperty.link( ( bounds ) => {
-    //   console.log( bounds );
-    // } );
- 
-    
+    // TODO: move this out of this listener, maybe into Sim.js - PanZoomListener shouldn't care about scenery.Display
+    scenery.Display.focusProperty.link( focus => {
+      if ( focus ) {
+        const node = focus.trail.lastNode();
+        if ( !this.panBounds.intersectsBounds( node.globalBounds ) ) {
+          this.panToNode( node );
+        }
+      }
+    } );
   }
 
   scenery.register( 'PanZoomListener', PanZoomListener );
@@ -115,9 +99,25 @@ define( function( require ) {
       this.correctReposition();
     },
 
-    repositionCustom: function( localPoint, scale ) {
-      MultiListener.prototype.repositionCustom.call( this, localPoint, scale );
+    translateToTarget: function( localPoint, targetPoint, scale ) {
+      MultiListener.prototype.translateToTarget.call( this, localPoint, targetPoint, scale );
       this.correctReposition();
+    },
+
+    /**
+     * Pan to a provided Node, attempting to place the node in the center of the view. It may not end up exactly in
+     * the center since we have to make sure panBounds are completely filled with targetNode content.
+     * @public
+     *
+     * @param {Node} node
+     */
+    panToNode: function( node ) {
+
+      // we want to "move" the view (whatever is within pan bounds) to the center of the targetNode, so we actually
+      // translate the targetNode FROM the node center TO the center of the pan bounds, relative to the target node
+      const targetPoint = this._targetNode.globalToParentPoint( this.panBounds.center );
+      const sourcePoint = this._targetNode.globalToParentPoint( node.parentToGlobalPoint( node.center ) );
+      this.translateToTarget( sourcePoint, targetPoint, this.getCurrentScale() );
     },
 
     /**
@@ -172,12 +172,12 @@ define( function( require ) {
     },
 
     /**
-     * Get the visible bounds in the global coordinate frame after panning and zooming.
+     * Get the visible bounds in the global coordinate frame after panning and zooming. This is the portion of
+     * targetBounds within the panBounds, in the global coordinate frame.
      *
      * @returns {}
      */
     getVisibleBounds: function() {
-
     },
 
     setPanBounds: function( bounds ) {
@@ -194,7 +194,7 @@ define( function( require ) {
       this._targetBounds = targetBounds;
     },
     set targetBounds( targetBounds ) { this.setTargetBounds( targetBounds ); },
-    
+
     getTargetBounds: function() {
       return this._targetBounds;
     },
