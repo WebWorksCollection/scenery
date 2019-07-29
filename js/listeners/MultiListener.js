@@ -392,15 +392,10 @@ define( function( require ) {
         this._targetNode.matrix = this.computeTranslationScaleToPointMatrix( wheel.localPoint, wheel.targetPoint, nextScale );
       }
       else {
-        const translationUnitVector = wheel.right ? new Vector2( -1, 0 ) :
-                                      wheel.left ? new Vector2( 1, 0 ) :
-                                      wheel.down ? new Vector2( 0, -1 ) :
-                                      wheel.up ? new Vector2( 0, 1 ) : null;
 
         // at the end of a wheel event we may receive the event without any direction (deltaX/deltaY)
-        if ( translationUnitVector !==  null ) {
-          this._targetNode.matrix = this.computeTranslationDeltaMatrix( translationUnitVector, 40 );
-        }
+        console.log( wheel.translationVector );
+        this._targetNode.matrix = this.computeTranslationDeltaMatrix( wheel.translationVector, 80 );
       }
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
@@ -451,7 +446,7 @@ define( function( require ) {
                                       keyPress.left ? new Vector2( 1, 0 ) :
                                       keyPress.down ? new Vector2( 0, -1 ) :
                                       keyPress.up ? new Vector2( 0, 1 ) : null;
-        this._targetNode.matrix = this.computeTranslationDeltaMatrix( translationUnitVector, 40 );
+        this._targetNode.matrix = this.computeTranslationDeltaMatrix( translationUnitVector, 80 );
       }
 
 
@@ -792,6 +787,10 @@ define( function( require ) {
       this.down = event.domEvent.deltaY > 0;
       this.right = event.domEvent.deltaX > 0;
       this.left = event.domEvent.deltaX < 0;
+
+      const verticalTranslation = this.up ? 1 : this.down ? -1 : 0;
+      const horizontalTranslation = this.right ? -1 : this.left ? 1 : 0;
+      this.translationVector = new Vector2( horizontalTranslation, verticalTranslation ).normalize();
     }
   }
 
