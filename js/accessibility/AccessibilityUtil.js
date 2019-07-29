@@ -514,6 +514,22 @@ define( function( require ) {
       element.setAttribute( DATA_FOCUSABLE, focusable );
     },
 
+    /**
+     * Returns the amount (in pixels) that the document has been scrolled. Useful for correcting pointer positions
+     * if the window has been zoomed.
+     * @param {string} scrollDirection - 'scrollTop' || 'scrollLeft', from DOM spec
+     * @returns {number}
+     */
+    getScrollAmount: function( scrollDirection ) {
+      assert && assert( scrollDirection === 'scrollTop' || scrollDirection === 'scrollLeft' );
+
+      // most browsers place overflow level at <html> level, except safari which defines it on body
+      const documentElement = document.documentElement;
+      const body = document.body;
+
+      return documentElement[ scrollDirection ] || body[ scrollDirection ];
+    },
+
     TAGS: {
       INPUT: INPUT_TAG,
       LABEL: LABEL_TAG,

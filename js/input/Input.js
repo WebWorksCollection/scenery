@@ -919,22 +919,6 @@ define( require => {
     }
 
     /**
-     * Returns the amount (in pixels) that the document has been scrolled. Useful for correcting pointer positions
-     * if the window has been zoomed.
-     * @param {string} scrollDirection - 'scrollTop' || 'scrollLeft', from DOM spec
-     * @returns {number}
-     */
-    getScrollAmount( scrollDirection ) {
-      assert && assert( scrollDirection === 'scrollTop' || scrollDirection === 'scrollLeft' );
-
-      // most browsers place overflow level at <html> level, except safari which defines it on body
-      const documentElement = document.documentElement;
-      const body = document.body;
-
-      return documentElement[ scrollDirection ] || body[ scrollDirection ];
-    }
-
-    /**
      * Extract a {Vector2} global coordinate point from an arbitrary DOM event.
      * @public (scenery-internal)
      *
@@ -945,8 +929,8 @@ define( require => {
 
       // correct by amount of scroll after zooming (this should only be necessary on Safari where there is no way
       // to prevent native zooming in response to trackpad gestures).
-      const scrollHeight = this.getScrollAmount( 'scrollTop' );
-      const scrollWidth = this.getScrollAmount( 'scrollLeft' );
+      const scrollHeight = AccessibilityUtil.getScrollAmount( 'scrollTop' );
+      const scrollWidth = AccessibilityUtil.getScrollAmount( 'scrollLeft' );
 
       const position = Vector2.createFromPool( domEvent.clientX + scrollWidth, domEvent.clientY + scrollHeight );
       if ( !this.assumeFullWindow ) {

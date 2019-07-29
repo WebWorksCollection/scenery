@@ -393,8 +393,14 @@ define( function( require ) {
       }
       else {
 
+        // if at zero scroll amount and trying to scroll left, prevent default so we don't go "back" a page - our custom
+        // implementation is susceptible to this because we add panning while the document is actually already
+        // scrolled all the way to the left, so left-panning gestures tell the browser to go "back"
+        if ( AccessibilityUtil.getScrollAmount( 'scrollLeft' ) === 0 && wheel.left ) {
+          event.domEvent.preventDefault();
+        }
+
         // at the end of a wheel event we may receive the event without any direction (deltaX/deltaY)
-        console.log( wheel.translationVector );
         this._targetNode.matrix = this.computeTranslationDeltaMatrix( wheel.translationVector, 80 );
       }
 
