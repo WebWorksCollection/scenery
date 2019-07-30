@@ -821,14 +821,36 @@ define( function( require ) {
       this.recomputeLocalPoint();
     }
 
+    /**
+     * From a key press, we want to zoom into of the currently focused object and the origin of the display if there
+     * is no focus.
+     */
     recomputeLocalPoint() {
-      this.localPoint = new Vector2( 0, 0 );
+      const focusedNode = scenery.Display.focusedNode;
+      if ( focusedNode ) {
+        const globalPoint = focusedNode.parentToGlobalPoint( focusedNode.center );
+        this.localPoint = this.targetNode.globalToLocalPoint( globalPoint );
+      }
+      else {
+        this.localPoint = new Vector2( 0, 0 );
+      }
     }
 
-    // from a key press, we will zoom in and out of the upper right corner of the display.
+    /**
+     * From a key press, we want to zoom into the focused node if that node exists, and into the origin of what is
+     * currently displayed.
+     *
+     * @returns {Vector2}
+     */
     get targetPoint() {
-      const displayOrigin = new Vector2( 0, 0 );
-      return this.targetNode.matrix.timesVector2( displayOrigin );
+      const focusedNode = scenery.Display.focusedNode;
+      if ( focusedNode ) {
+        const globalPoint = focusedNode.parentToGlobalPoint( focusedNode.center );
+        return this.targetNode.globalToParentPoint( globalPoint );
+      }
+      else {
+        return this.targetNode.matrix.timesVector2( new Vector2( 0, 0 ) );
+      }
     }
   }
 
