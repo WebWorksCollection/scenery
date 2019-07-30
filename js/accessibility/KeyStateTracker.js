@@ -88,7 +88,7 @@ define( require => {
      * Modifier keys might be part of the domEvent but the browser may or may not have received a keydown/keyup event
      * with specifically for the modifier key. This will add or remove modifier keys in that case.
      * @private
-     * 
+     *
      * @param  {DOMEvent} domEvent
      */
     correctModifierKeys( domEvent ) {
@@ -309,14 +309,14 @@ define( require => {
       assert && assert( !this.attachedToBody, 'KeyStateTracker is already attached to body.' );
 
       this.bodyKeydownListener = event => {
-        if ( this.blockTrustedEvents && event.domEvent.isTrusted ) {
+        if ( this.blockTrustedEvents && event.isTrusted ) {
           return;
         }
         scenery.Display.keyStateTracker.keydownUpdate( event );
       };
 
       this.bodyKeyupListener = event => {
-        if ( this.blockTrustedEvents && event.domEvent.isTrusted ) {
+        if ( this.blockTrustedEvents && event.isTrusted ) {
           return;
         }
         scenery.Display.keyStateTracker.keyupUpdate( event );
@@ -330,7 +330,7 @@ define( require => {
 
     /**
      * Detach listeners from the body that would update the state of this KeyStateTracker on key presses.
-     * 
+     *
      * @public
      */
     detachFromBody() {
