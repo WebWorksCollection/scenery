@@ -188,9 +188,12 @@ define( function( require ) {
         sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener keyboard reset' );
         sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
-        // don't let the browser change view
-        event.preventDefault();
-        this.resetTransform();
+        // only prevent default and reset if zooming in non-natively, so that for native magnification we can revert
+        // still reset from this key command
+        if ( this.isTransformApplied() ) {
+          event.preventDefault();
+          this.resetTransform();
+        }
 
         sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
       }
@@ -393,15 +396,14 @@ define( function( require ) {
       }
       else {
 
-        // if at zero scroll amount and trying to scroll left, prevent default so we don't go "back" a page - our custom
-        // implementation is susceptible to this because we add panning while the document is actually already
-        // scrolled all the way to the left, so left-panning gestures tell the browser to go "back"
-        if ( AccessibilityUtil.getScrollAmount( 'scrollLeft' ) === 0 && wheel.left ) {
+        // if we are zoomed in from our "custom" method, prevent default so that we don't pan natively at the same
+        // time, and so the browser doesn't try to go forward/back a page if we are natively zoomed all the way out
+        if ( this.isTransformApplied() ) {
           event.domEvent.preventDefault();
         }
 
         // at the end of a wheel event we may receive the event without any direction (deltaX/deltaY)
-        this._targetNode.matrix = this.computeTranslationDeltaMatrix( wheel.translationVector, 80 );
+        this._targetNode.matrix = this.computeTranslationDeltaMatrix( wheel.translationVector, 5 );
       }
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
@@ -429,6 +431,14 @@ define( function( require ) {
      */
     resetTransform() {
       this._targetNode.resetTransform();
+    },
+
+    /**
+     * Returns true if some transformation is applied to the target node.
+     * @returns {boolean}
+     */
+    isTransformApplied() {
+      return !this._targetNode.matrix.equalsEpsilon( Matrix3.IDENTITY, 1e-4 );
     },
 
     /**
