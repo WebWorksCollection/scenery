@@ -26,6 +26,7 @@ define( function( require ) {
   var SingularValueDecomposition = require( 'DOT/SingularValueDecomposition' );
   var Vector2 = require( 'DOT/Vector2' );
   var timer = require( 'AXON/timer' );
+  var Util = require( 'DOT/Util' );
 
   /**
    * @constructor
@@ -73,7 +74,7 @@ define( function( require ) {
     this.sourceLocation = new Vector2( 0, 0 );
     this.destinationLocation = new Vector2( 0, 0 );
     this.sourceScale = 1;
-    this.destinationScale = 1;
+    this.destinationScale = null;
 
     this.translationVelocity = new Vector2( 1, 1 );
     this.scaleVelocity = new Vector2( 1, 1 );
@@ -241,7 +242,7 @@ define( function( require ) {
 
     if ( this._animate ) {
       timer.addListener( ( dt ) => {
-        if ( this.destinationLocation ) {
+        if ( this.destinationLocation || this.destinationScale ) {
           this.animateToTargets( dt );
         }
       } );
@@ -398,12 +399,18 @@ define( function( require ) {
       event.domEvent.preventDefault();
 
       if ( scenery.Display.keyStateTracker.ctrlKeyDown ) {
+        const scaleDelta = wheel.up ? 0.2 : -0.2;
+        const nextScale = this.limitScale( this.getCurrentScale() + scaleDelta );
 
-        // disable browser zoom
-        event.domEvent.preventDefault();
-
-        const nextScale = this.getNextDiscreteScale( event, this._targetNode, wheel.up );
-        this._targetNode.matrix = this.computeTranslationScaleToPointMatrix( wheel.localPoint, wheel.targetPoint, nextScale );
+        if ( this._animate ) {
+          this.destinationScale = nextScale;
+          this.destinationLocation = wheel.targetPoint;
+          console.log( destinationLocation );
+        }
+        else {
+          const nextScale = this.getNextDiscreteScale( event, this._targetNode, wheel.up );
+          this._targetNode.matrix = this.computeTranslationScaleToPointMatrix( wheel.localPoint, wheel.targetPoint, nextScale );
+        }
       }
       else {
 
@@ -427,8 +434,10 @@ define( function( require ) {
     },
 
     animateToTargets: function( dt ) {
-      if ( !this.destinationLocation.equalsEpsilon( this.sourceLocation, 0.1 ) ) {
-        // const destinationLocation = this._calculateDestinationLocation();
+      const locationDirty = this.destinationLocation && !this.destinationLocation.equalsEpsilon( this.sourceLocation, 0.1 );
+      const scaleDirty = this.destinationScale && !Util.equalsEpsilon( this.sourceScale, this.destinationScale, 0.001 );
+
+      if ( locationDirty ) {
         const translationDifference = this.destinationLocation.minus( this.sourceLocation );
         const translateDirection = translationDifference.normalized();
 
@@ -441,10 +450,26 @@ define( function( require ) {
 
         this.panDelta( translationDelta );
 
-        console.log( this.sourceLocation, this.destinationLocation );
+        // console.log( this.sourceLocation, this.destinationLocation );
       }
       else {
         this.destinationLocation = null;
+      }
+
+
+      if ( scaleDirty ) {
+
+        const scaleDifference = ( this.destinationScale - this.sourceScale );
+        const scaleDelta = scaleDifference * dt * 6;
+        const scaleMatrix = Matrix3.scaling( ( this.sourceScale + scaleDelta ) / this.sourceScale );
+
+        this._targetNode.matrix = scaleMatrix.timesMatrix( this._targetNode.matrix );
+
+        this.sourceScale = this.getCurrentScale();
+        console.log( this.sourceScale, this.destinationScale );
+      }
+      else {
+        this.destinationScale = null;
       }
     },
 

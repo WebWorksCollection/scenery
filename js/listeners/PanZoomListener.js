@@ -229,8 +229,10 @@ define( function( require ) {
 
 
       // this.sourceLocation = this.transformedTargetBoundsProperty.get().center;
-      this.sourceLocation = this._targetNode.parentToGlobalPoint( this.panBounds.center );
+      // this.sourceLocation = this._targetNode.parentToGlobalPoint( this.panBounds.center );
       // console.log( this.transformedPanBounds.center );
+
+      // this is the center of the pan bounds, in the local coordinate frame of the target node
       this.sourceLocation = this.transformedPanBounds.center;
       // this.sourceLocation = this._targetNode.globalToParentPoint( this.panBounds.center );
     },
