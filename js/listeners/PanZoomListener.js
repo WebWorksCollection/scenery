@@ -19,8 +19,6 @@ define( function( require ) {
   var NumberProperty = require( 'AXON/NumberProperty' );
   var Property = require( 'AXON/Property' );
   var scenery = require( 'SCENERY/scenery' );
-  var timer = require( 'AXON/timer' );
-  const Vector2 = require( 'DOT/Vector2' );
 
   /**
    * @constructor
@@ -65,21 +63,12 @@ define( function( require ) {
     // @public - horizontal scroll amount from panning
     this.horizontalScrollProperty = new NumberProperty( 0 );
 
-    this._calculateDestinationLocation = null;
-
     // @public - vertical scroll amount from panning
     this.verticalScrollProperty = new NumberProperty( 0 );
 
     this.relativeHeightVisibleProperty = new NumberProperty( 1 );
 
     this.relativeWidthVisibleProperty = new NumberProperty( 1 );
-
-    this.sourceLocation = new Vector2( 0, 0 );
-    this.sourceScale = 1;
-    this.destinationScale = 1;
-
-    this.translationVelocity = new Vector2( 1, 1 );
-    this.scaleVelocity = new Vector2( 1, 1 );
 
     const transformedBounds = this._targetBounds.transformed( this._targetNode.getMatrix() );
     this.transformedTargetBoundsProperty = new Property( transformedBounds );
@@ -93,14 +82,6 @@ define( function( require ) {
         }
       }
     } );
-
-    if ( this._animate ) {
-      timer.addListener( ( dt ) => {
-        if ( this._calculateDestinationLocation ) {
-          this.animateToTargets( dt );
-        }
-      } );
-    }
   }
 
   scenery.register( 'PanZoomListener', PanZoomListener );
@@ -134,41 +115,37 @@ define( function( require ) {
      * @param {Node} node
      */
     panToNode: function( node ) {
-
-
-
       if ( this._animate ) {
-        this._calculateDestinationLocation = () => {
-          const targetLocation = node.parentToGlobalPoint( node.center );
+        const globalLocation = node.globalBounds.center;
+        // const globalPanBounds = this.panBounds.transformed( this._targetNode.matrix );
+        // const panBoundsInTargetFrame = this.panBounds.transformed( this._targetNode.matrix );
 
-          const globalTargetLocation = node.globalBounds.center;
-          const globalPanBounds = this.panBounds.transformed( this._targetNode.matrix );
+        const locationInTargetFrame = this._targetNode.globalToLocalPoint( globalLocation );
 
-          const panBounds = this._targetNode.globalToParentBounds( this.panBounds );
+        const distanceToLeftEdge = Math.abs( this.targetBounds.left - locationInTargetFrame.x );
+        const distanceToRightEdge = Math.abs( this.targetBounds.right - locationInTargetFrame.x );
+        const distanceToTopEdge = Math.abs( this.targetBounds.top - locationInTargetFrame.y );
+        const distanceToBottomEdge = Math.abs( this.targetBounds.bottom - locationInTargetFrame.y );
 
-          const distanceToLeftEdge = Math.abs( globalPanBounds.left - globalTargetLocation.x );
-          const distanceToRightEdge = Math.abs( globalPanBounds.right - globalTargetLocation.x );
-          const distanceToTopEdge = Math.abs( globalPanBounds.top - targetLocation.y );
-          const distanceToBottomEdge = Math.abs( globalPanBounds.bottom - targetLocation.y );
-          if ( distanceToRightEdge < panBounds.width / 2  ) {
-            const correction = panBounds.width / 2 - distanceToRightEdge;
-            targetLocation.x = targetLocation.x - correction;
-          }
-          if ( distanceToLeftEdge < panBounds.width / 2 ) {
-            const correction = panBounds.width / 2 - distanceToLeftEdge;
-            targetLocation.x = targetLocation.x + correction;
-          }
-          if ( distanceToTopEdge < panBounds.height / 2 ) {
-            const correction = panBounds.height / 2 - distanceToTopEdge;
-            targetLocation.y = targetLocation.y + correction;
-          }
-          if ( distanceToBottomEdge < panBounds.height / 2 ) {
-            const correction = panBounds.height / 2 - distanceToBottomEdge;
-            targetLocation.y = targetLocation.y - correction;
-          }
+        // debugger;
+        if ( distanceToRightEdge < this.transformedPanBounds.width / 2  ) {
+          const correction = this.transformedPanBounds.width / 2 - distanceToRightEdge;
+          locationInTargetFrame.x = locationInTargetFrame.x - correction;
+        }
+        if ( distanceToLeftEdge < this.transformedPanBounds.width / 2 ) {
+          const correction = this.transformedPanBounds.width / 2 - distanceToLeftEdge;
+          locationInTargetFrame.x = locationInTargetFrame.x + correction;
+        }
+        if ( distanceToTopEdge < this.transformedPanBounds.height / 2 ) {
+          const correction = this.transformedPanBounds.height / 2 - distanceToTopEdge;
+          locationInTargetFrame.y = locationInTargetFrame.y + correction;
+        }
+        if ( distanceToBottomEdge < this.transformedPanBounds.height / 2 ) {
+          const correction = this.transformedPanBounds.height / 2 - distanceToBottomEdge;
+          locationInTargetFrame.y = locationInTargetFrame.y - correction;
+        }
 
-          return targetLocation;
-        };
+        this.destinationLocation = locationInTargetFrame;
       }
       else {
 
@@ -177,25 +154,6 @@ define( function( require ) {
         const targetPoint = this._targetNode.globalToParentPoint( this.panBounds.center );
         const sourcePoint = this._targetNode.globalToParentPoint( node.parentToGlobalPoint( node.center ) );
         this.translateToTarget( sourcePoint, targetPoint, this.getCurrentScale() );
-      }
-    },
-
-    animateToTargets: function( dt ) {
-      const destinationLocation = this._calculateDestinationLocation();
-      const translationDifference = destinationLocation.minus( this.sourceLocation );
-      const translateDirection = translationDifference.normalized();
-
-      // translation velocity is faster the farther away you are from the target
-      const vel = translationDifference.magnitude * 3;
-      this.translationVelocity.setXY( vel, vel );
-
-      const translationMagnitude = this.translationVelocity.timesScalar( dt );
-      const translationDelta = translateDirection.componentTimes( translationMagnitude );
-
-      this.panDelta( translationDelta );
-
-      if ( destinationLocation.equalsEpsilon( this.sourceLocation, 0.1 ) ) {
-        this._calculateDestinationLocation = null;
       }
     },
 
@@ -249,6 +207,10 @@ define( function( require ) {
       this.transformedTargetBoundsProperty.set( correctedTransformedBounds );
 
       // the pan bounds transformed so they are relative to the target node
+      // this.transformedPanBounds = this.panBounds.transformed( this._targetNode.matrix.inverted() );
+
+      // the pan bounds transformed
+      // this.transformedPanBounds = this._targetNode.localToGlobalBounds( this.panBounds );
       this.transformedPanBounds = this.panBounds.transformed( this._targetNode.matrix.inverted() );
 
       this.magnificationProperty.set( this._targetNode.getScaleVector().x );
@@ -265,7 +227,12 @@ define( function( require ) {
       this.verticalScrollProperty.set( verticalScroll );
       this.relativeHeightVisibleProperty.set( this._panBounds.getHeight() / correctedTransformedBounds.getHeight() );
 
-      this.sourceLocation = this._targetNode.globalToParentPoint( this.panBounds.center );
+
+      // this.sourceLocation = this.transformedTargetBoundsProperty.get().center;
+      this.sourceLocation = this._targetNode.parentToGlobalPoint( this.panBounds.center );
+      // console.log( this.transformedPanBounds.center );
+      this.sourceLocation = this.transformedPanBounds.center;
+      // this.sourceLocation = this._targetNode.globalToParentPoint( this.panBounds.center );
     },
 
     /**

@@ -25,6 +25,7 @@ define( function( require ) {
   var scenery = require( 'SCENERY/scenery' );
   var SingularValueDecomposition = require( 'DOT/SingularValueDecomposition' );
   var Vector2 = require( 'DOT/Vector2' );
+  var timer = require( 'AXON/timer' );
 
   /**
    * @constructor
@@ -42,6 +43,7 @@ define( function( require ) {
       allowScale: true,
       allowRotation: true,
       allowMultitouchInterruption: true,
+      animate: true,
 
       // limits for scaling
       minScale: 1, // TODO: values less than 1 are currently not supported
@@ -64,6 +66,17 @@ define( function( require ) {
     this._allowMultitouchInterruption = options.allowMultitouchInterruption;
     this._minScale = options.minScale;
     this._maxScale = options.maxScale;
+    this._animate = options.animate;
+
+    this._calculateDestinationLocation = null;
+
+    this.sourceLocation = new Vector2( 0, 0 );
+    this.destinationLocation = new Vector2( 0, 0 );
+    this.sourceScale = 1;
+    this.destinationScale = 1;
+
+    this.translationVelocity = new Vector2( 1, 1 );
+    this.scaleVelocity = new Vector2( 1, 1 );
 
     // @private {Array.<Press>}
     this._presses = [];
@@ -225,6 +238,14 @@ define( function( require ) {
         }
       }
     } );
+
+    if ( this._animate ) {
+      timer.addListener( ( dt ) => {
+        if ( this.destinationLocation ) {
+          this.animateToTargets( dt );
+        }
+      } );
+    }
   }
 
   scenery.register( 'MultiListener', MultiListener );
@@ -323,6 +344,9 @@ define( function( require ) {
       assert && assert( _.includes( event.trail.nodes, this._targetNode ),
         'MultiListener down trail does not include targetNode?' );
 
+      // stop all animation when user clicks/touches
+      this.destinationLocation = null;
+
       var press = new Press( event.pointer, event.trail.subtrailTo( this._targetNode, false ) );
 
       if ( !event.pointer.isAttached() ) {
@@ -370,6 +394,9 @@ define( function( require ) {
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener reposition' );
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
+      // prevent all default from wheel input
+      event.domEvent.preventDefault();
+
       if ( scenery.Display.keyStateTracker.ctrlKeyDown ) {
 
         // disable browser zoom
@@ -386,11 +413,39 @@ define( function( require ) {
           event.domEvent.preventDefault();
         }
 
-        // at the end of a wheel event we may receive the event without any direction (deltaX/deltaY)
-        this._targetNode.matrix = this.computeTranslationDeltaMatrix( wheel.translationVector, 5 );
+        if ( this._animate ) {
+          const translationDelta = wheel.translationVector.withMagnitude( 100 );
+          this.destinationLocation = this.sourceLocation.plus( translationDelta );
+        }
+        else {
+          // at the end of a wheel event we may receive the event without any direction (deltaX/deltaY)
+          this._targetNode.matrix = this.computeTranslationDeltaMatrix( wheel.translationVector,  );
+        }
       }
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
+    },
+
+    animateToTargets: function( dt ) {
+      if ( !this.destinationLocation.equalsEpsilon( this.sourceLocation, 0.1 ) ) {
+        // const destinationLocation = this._calculateDestinationLocation();
+        const translationDifference = this.destinationLocation.minus( this.sourceLocation );
+        const translateDirection = translationDifference.normalized();
+
+        // translation velocity is faster the farther away you are from the target
+        const vel = translationDifference.magnitude * 6;
+        this.translationVelocity.setXY( vel, vel );
+
+        const translationMagnitude = this.translationVelocity.timesScalar( dt );
+        const translationDelta = translateDirection.componentTimes( translationMagnitude );
+
+        this.panDelta( translationDelta );
+
+        console.log( this.sourceLocation, this.destinationLocation );
+      }
+      else {
+        this.destinationLocation = null;
+      }
     },
 
     /**
@@ -788,8 +843,8 @@ define( function( require ) {
       this.right = event.domEvent.deltaX > 0;
       this.left = event.domEvent.deltaX < 0;
 
-      const verticalTranslation = this.up ? 1 : this.down ? -1 : 0;
-      const horizontalTranslation = this.right ? -1 : this.left ? 1 : 0;
+      const verticalTranslation = this.up ? -1 : this.down ? 1 : 0;
+      const horizontalTranslation = this.right ? 1 : this.left ? -1 : 0;
       this.translationVector = new Vector2( horizontalTranslation, verticalTranslation ).normalize();
     }
   }
