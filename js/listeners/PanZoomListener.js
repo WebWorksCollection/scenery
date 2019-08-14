@@ -19,6 +19,8 @@ define( function( require ) {
   var NumberProperty = require( 'AXON/NumberProperty' );
   var Property = require( 'AXON/Property' );
   var scenery = require( 'SCENERY/scenery' );
+  var timer = require( 'AXON/timer' );
+  const Vector2 = require( 'DOT/Vector2' );
 
   /**
    * @constructor
@@ -41,7 +43,8 @@ define( function( require ) {
       allowRotation: false,
       pressCursor: null,
       panBounds: Bounds2.NOTHING, // these bounds should be fully filled with content at all times
-      targetBounds: null // these bounds are adjusted by target transformation
+      targetBounds: null, // these bounds are adjusted by target transformation
+      animate: true
     }, options );
 
     // TODO: type checks for options
@@ -54,11 +57,15 @@ define( function( require ) {
     // @private {null|Bounds2} - set of bounds that should fill panBounds -
     this._targetBounds = options.targetBounds || targetNode.bounds;
 
+    this._animate = options.animate;
+
     // @public - magnification scale for the model
     this.magnificationProperty = new NumberProperty( 1 );
 
     // @public - horizontal scroll amount from panning
     this.horizontalScrollProperty = new NumberProperty( 0 );
+
+    this._calculateDestinationLocation = null;
 
     // @public - vertical scroll amount from panning
     this.verticalScrollProperty = new NumberProperty( 0 );
@@ -67,8 +74,15 @@ define( function( require ) {
 
     this.relativeWidthVisibleProperty = new NumberProperty( 1 );
 
+    this.sourceLocation = new Vector2( 0, 0 );
+    this.sourceScale = 1;
+    this.destinationScale = 1;
+
+    this.translationVelocity = new Vector2( 1, 1 );
+    this.scaleVelocity = new Vector2( 1, 1 );
+
     const transformedBounds = this._targetBounds.transformed( this._targetNode.getMatrix() );
-    this.transformedPanBoundsProperty = new Property( transformedBounds );
+    this.transformedTargetBoundsProperty = new Property( transformedBounds );
 
     // TODO: move this out of this listener, maybe into Sim.js - PanZoomListener shouldn't care about scenery.Display
     scenery.Display.focusProperty.link( focus => {
@@ -79,6 +93,14 @@ define( function( require ) {
         }
       }
     } );
+
+    if ( this._animate ) {
+      timer.addListener( ( dt ) => {
+        if ( this._calculateDestinationLocation ) {
+          this.animateToTargets( dt );
+        }
+      } );
+    }
   }
 
   scenery.register( 'PanZoomListener', PanZoomListener );
@@ -113,11 +135,68 @@ define( function( require ) {
      */
     panToNode: function( node ) {
 
-      // we want to "move" the view (whatever is within pan bounds) to the center of the targetNode, so we actually
-      // translate the targetNode FROM the node center TO the center of the pan bounds, relative to the target node
-      const targetPoint = this._targetNode.globalToParentPoint( this.panBounds.center );
-      const sourcePoint = this._targetNode.globalToParentPoint( node.parentToGlobalPoint( node.center ) );
-      this.translateToTarget( sourcePoint, targetPoint, this.getCurrentScale() );
+
+
+      if ( this._animate ) {
+        this._calculateDestinationLocation = () => {
+          const targetLocation = node.parentToGlobalPoint( node.center );
+
+          const globalTargetLocation = node.globalBounds.center;
+          const globalPanBounds = this.panBounds.transformed( this._targetNode.matrix );
+
+          const panBounds = this._targetNode.globalToParentBounds( this.panBounds );
+
+          const distanceToLeftEdge = Math.abs( globalPanBounds.left - globalTargetLocation.x );
+          const distanceToRightEdge = Math.abs( globalPanBounds.right - globalTargetLocation.x );
+          const distanceToTopEdge = Math.abs( globalPanBounds.top - targetLocation.y );
+          const distanceToBottomEdge = Math.abs( globalPanBounds.bottom - targetLocation.y );
+          if ( distanceToRightEdge < panBounds.width / 2  ) {
+            const correction = panBounds.width / 2 - distanceToRightEdge;
+            targetLocation.x = targetLocation.x - correction;
+          }
+          if ( distanceToLeftEdge < panBounds.width / 2 ) {
+            const correction = panBounds.width / 2 - distanceToLeftEdge;
+            targetLocation.x = targetLocation.x + correction;
+          }
+          if ( distanceToTopEdge < panBounds.height / 2 ) {
+            const correction = panBounds.height / 2 - distanceToTopEdge;
+            targetLocation.y = targetLocation.y + correction;
+          }
+          if ( distanceToBottomEdge < panBounds.height / 2 ) {
+            const correction = panBounds.height / 2 - distanceToBottomEdge;
+            targetLocation.y = targetLocation.y - correction;
+          }
+
+          return targetLocation;
+        };
+      }
+      else {
+
+        // we want to "move" the view (whatever is within pan bounds) to the center of the targetNode, so we actually
+        // translate the targetNode FROM the node center TO the center of the pan bounds, relative to the target node
+        const targetPoint = this._targetNode.globalToParentPoint( this.panBounds.center );
+        const sourcePoint = this._targetNode.globalToParentPoint( node.parentToGlobalPoint( node.center ) );
+        this.translateToTarget( sourcePoint, targetPoint, this.getCurrentScale() );
+      }
+    },
+
+    animateToTargets: function( dt ) {
+      const destinationLocation = this._calculateDestinationLocation();
+      const translationDifference = destinationLocation.minus( this.sourceLocation );
+      const translateDirection = translationDifference.normalized();
+
+      // translation velocity is faster the farther away you are from the target
+      const vel = translationDifference.magnitude * 3;
+      this.translationVelocity.setXY( vel, vel );
+
+      const translationMagnitude = this.translationVelocity.timesScalar( dt );
+      const translationDelta = translateDirection.componentTimes( translationMagnitude );
+
+      this.panDelta( translationDelta );
+
+      if ( destinationLocation.equalsEpsilon( this.sourceLocation, 0.1 ) ) {
+        this._calculateDestinationLocation = null;
+      }
     },
 
     /**
@@ -166,7 +245,11 @@ define( function( require ) {
 
       // update the transformed bounds after corrections above as it will be used for calculations
       const correctedTransformedBounds = this._targetBounds.transformed( this._targetNode.getMatrix() );
-      this.transformedPanBoundsProperty.set( correctedTransformedBounds );
+      // const correctedTransformedBounds = this._targetNode.globalToParentBounds( this._targetBounds );
+      this.transformedTargetBoundsProperty.set( correctedTransformedBounds );
+
+      // the pan bounds transformed so they are relative to the target node
+      this.transformedPanBounds = this.panBounds.transformed( this._targetNode.matrix.inverted() );
 
       this.magnificationProperty.set( this._targetNode.getScaleVector().x );
 
@@ -181,6 +264,8 @@ define( function( require ) {
       const verticalScroll = totalVerticalPan === 0 ? 0 : -currentVerticalPan / totalVerticalPan;
       this.verticalScrollProperty.set( verticalScroll );
       this.relativeHeightVisibleProperty.set( this._panBounds.getHeight() / correctedTransformedBounds.getHeight() );
+
+      this.sourceLocation = this._targetNode.globalToParentPoint( this.panBounds.center );
     },
 
     /**

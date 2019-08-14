@@ -283,22 +283,6 @@ define( function( require ) {
           this.discreteScaleIndex = nextIndex;
         }
       }
-      // else {
-      //   let distance = Number.POSITIVE_INFINITY;
-      //   let closestScaleIndex = null;
-      //   for ( let i = 0; i < discreteScales.length; i++ ) {
-      //     let newDistance = discreteScales[ i ] - currentScale;
-      //     if ( newDistance < distance ) {
-      //       distance = newDistance;
-      //       closestScaleIndex = i;
-      //     }
-      //   }
-
-      //   console.log( closestScaleIndex );
-      // }
-
-      // const keyPress = new KeyPress( event, this._targetNode, 1 + zoomDelta );
-      // this.repositionFromKeys( keyPress );
 
       return discreteScale;
     },
