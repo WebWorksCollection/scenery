@@ -77,7 +77,8 @@ define( function( require ) {
     this.destinationScale = null;
 
     this.translationVelocity = new Vector2( 1, 1 );
-    this.scaleVelocity = new Vector2( 1, 1 );
+
+    this._modifyAnimationVelocity = ( velocity ) => { return velocity; };
 
     // @private {Array.<Press>}
     this._presses = [];
@@ -404,8 +405,8 @@ define( function( require ) {
 
         if ( this._animate ) {
           this.destinationScale = nextScale;
-          this.destinationLocation = wheel.targetPoint;
-          console.log( destinationLocation );
+          this.setDestinationLocation( wheel.targetPoint );
+          // this.destinationLocation = wheel.targetPoint;
         }
         else {
           const nextScale = this.getNextDiscreteScale( event, this._targetNode, wheel.up );
@@ -421,8 +422,14 @@ define( function( require ) {
         }
 
         if ( this._animate ) {
-          const translationDelta = wheel.translationVector.withMagnitude( 100 );
-          this.destinationLocation = this.sourceLocation.plus( translationDelta );
+          const translationDelta = wheel.translationVector.withMagnitude( 10 );
+          this.setDestinationLocation( this.sourceLocation.plus( translationDelta ) );
+          // this.destinationLocation = this.sourceLocation.plus( translationDelta );
+
+          this._modifyAnimationVelocity = ( velocity ) => {
+            const deltas = new Vector2( 2 + Math.abs( event.domEvent.deltaX ) / 10, 2 + Math.abs( event.domEvent.deltaY ) / 10 );
+            return velocity.componentTimes( deltas );
+          };
         }
         else {
           // at the end of a wheel event we may receive the event without any direction (deltaX/deltaY)
@@ -445,15 +452,18 @@ define( function( require ) {
         const vel = translationDifference.magnitude * 6;
         this.translationVelocity.setXY( vel, vel );
 
+        this.translationVelocity = this._modifyAnimationVelocity( this.translationVelocity );
+
         const translationMagnitude = this.translationVelocity.timesScalar( dt );
         const translationDelta = translateDirection.componentTimes( translationMagnitude );
 
         this.panDelta( translationDelta );
 
-        // console.log( this.sourceLocation, this.destinationLocation );
+        console.log( this.sourceLocation, this.destinationLocation );
       }
       else {
         this.destinationLocation = null;
+        this._modifyAnimationVelocity = ( velocity ) => { return velocity; };
       }
 
 
@@ -466,7 +476,7 @@ define( function( require ) {
         this._targetNode.matrix = scaleMatrix.timesMatrix( this._targetNode.matrix );
 
         this.sourceScale = this.getCurrentScale();
-        console.log( this.sourceScale, this.destinationScale );
+        // console.log( this.sourceScale, this.destinationScale );
       }
       else {
         this.destinationScale = null;

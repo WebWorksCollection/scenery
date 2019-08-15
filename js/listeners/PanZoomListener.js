@@ -117,8 +117,6 @@ define( function( require ) {
     panToNode: function( node ) {
       if ( this._animate ) {
         const globalLocation = node.globalBounds.center;
-        // const globalPanBounds = this.panBounds.transformed( this._targetNode.matrix );
-        // const panBoundsInTargetFrame = this.panBounds.transformed( this._targetNode.matrix );
 
         const locationInTargetFrame = this._targetNode.globalToLocalPoint( globalLocation );
 
@@ -145,7 +143,8 @@ define( function( require ) {
           locationInTargetFrame.y = locationInTargetFrame.y - correction;
         }
 
-        this.destinationLocation = locationInTargetFrame;
+        // this.destinationLocation = locationInTargetFrame;
+        this.setDestinationLocation( locationInTargetFrame );
       }
       else {
 
@@ -264,7 +263,13 @@ define( function( require ) {
     getTargetBounds: function() {
       return this._targetBounds;
     },
-    get targetBounds() { return this.getTargetBounds(); }
+    get targetBounds() { return this.getTargetBounds(); },
+
+    setDestinationLocation( destination ) {
+      const dilatedTargetBounds = this._targetBounds.erodedXY( this.transformedPanBounds.width / 2, this.transformedPanBounds.height / 2 );
+
+      this.destinationLocation = dilatedTargetBounds.closestPointTo( destination );
+    }
   } );
 
   return PanZoomListener;
