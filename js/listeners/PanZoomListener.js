@@ -70,6 +70,10 @@ define( function( require ) {
 
     this.relativeWidthVisibleProperty = new NumberProperty( 1 );
 
+    this.transformedPanBounds = this.panBounds.transformed( this._targetNode.matrix.inverted() );
+
+    this.sourceLocation = this.transformedPanBounds.center;
+
     const transformedBounds = this._targetBounds.transformed( this._targetNode.getMatrix() );
     this.transformedTargetBoundsProperty = new Property( transformedBounds );
 
@@ -82,6 +86,7 @@ define( function( require ) {
         }
       }
     } );
+
   }
 
   scenery.register( 'PanZoomListener', PanZoomListener );
@@ -104,6 +109,11 @@ define( function( require ) {
 
     translateToTarget: function( localPoint, targetPoint, scale ) {
       MultiListener.prototype.translateToTarget.call( this, localPoint, targetPoint, scale );
+      this.correctReposition();
+    },
+
+    animateToTargets: function( dt ) {
+      MultiListener.prototype.animateToTargets.call( this, dt );
       this.correctReposition();
     },
 
@@ -143,7 +153,6 @@ define( function( require ) {
           locationInTargetFrame.y = locationInTargetFrame.y - correction;
         }
 
-        // this.destinationLocation = locationInTargetFrame;
         this.setDestinationLocation( locationInTargetFrame );
       }
       else {
@@ -166,6 +175,11 @@ define( function( require ) {
       const targetPoint = this._targetNode.globalToParentPoint( this.panBounds.center );
       const sourcePoint = targetPoint.plus( deltaVector );
       this.translateToTarget( sourcePoint, targetPoint );
+    },
+
+    translateScaleToTarget: function( localPoint, parentPoint, scaleDelta ) {
+      MultiListener.prototype.translateScaleToTarget.call( this, localPoint, parentPoint, scaleDelta );
+      this.correctReposition();
     },
 
     /**
@@ -233,6 +247,7 @@ define( function( require ) {
 
       // this is the center of the pan bounds, in the local coordinate frame of the target node
       this.sourceLocation = this.transformedPanBounds.center;
+      this.sourceScale = this.getCurrentScale();
       // this.sourceLocation = this._targetNode.globalToParentPoint( this.panBounds.center );
     },
 
@@ -245,8 +260,16 @@ define( function( require ) {
     getVisibleBounds: function() {
     },
 
+    initializeLocations: function() {
+      this.sourceLocation = this.transformedPanBounds.center;
+      this.setDestinationLocation( this.sourceLocation );
+    },
+
     setPanBounds: function( bounds ) {
       this._panBounds = bounds;
+
+      this.correctReposition();
+      this.initializeLocations();
     },
     set panBounds( bounds ) { this.setPanBounds( bounds ); },
 
@@ -257,6 +280,9 @@ define( function( require ) {
 
     setTargetBounds: function( targetBounds ) {
       this._targetBounds = targetBounds;
+      this.correctReposition();
+
+      this.initializeLocations();
     },
     set targetBounds( targetBounds ) { this.setTargetBounds( targetBounds ); },
 
@@ -266,9 +292,16 @@ define( function( require ) {
     get targetBounds() { return this.getTargetBounds(); },
 
     setDestinationLocation( destination ) {
-      const dilatedTargetBounds = this._targetBounds.erodedXY( this.transformedPanBounds.width / 2, this.transformedPanBounds.height / 2 );
+      // const dilatedTargetBounds = this._targetBounds.erodedXY( this.transformedPanBounds.width / 2, this.transformedPanBounds.height / 2 );
+      // this.destinationLocation = dilatedTargetBounds.closestPointTo( destination );
+      this.destinationLocation = destination;
 
-      this.destinationLocation = dilatedTargetBounds.closestPointTo( destination );
+      this.animating = true;
+    },
+
+    setDestinationScale: function( scale ) {
+      this.destinationScale = this.limitScale( scale );
+      this.animating = true;
     }
   } );
 

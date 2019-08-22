@@ -69,14 +69,15 @@ define( function( require ) {
     this._maxScale = options.maxScale;
     this._animate = options.animate;
 
+    this.animating = false;
+
     this._calculateDestinationLocation = null;
 
-    this.sourceLocation = new Vector2( 0, 0 );
-    this.destinationLocation = new Vector2( 0, 0 );
+    this.sourceLocation = null;
+    this.destinationLocation = null;
+    this.scaleGestureTargetLocation = null;
     this.sourceScale = 1;
-    this.destinationScale = null;
-
-    this.translationVelocity = new Vector2( 1, 1 );
+    this.destinationScale = 1;
 
     this._modifyAnimationVelocity = ( velocity ) => { return velocity; };
 
@@ -161,6 +162,29 @@ define( function( require ) {
       }
     };
 
+    let gestureStartScale = 1;
+
+    // Warning: NON STANDARD, see https://developer.apple.com/documentation/webkitjs/gestureevent for
+    // documentation and additional info
+    // However, it is the only way to detect trackpad input on macOS Safari
+    // NOTE: Verify these don't interfere with other guestures on touch screens?
+    // NOTE: Perhaps have this event go through scenery?
+    window.addEventListener('gesturestart', ( e ) => {
+
+      // don't allow the syste to do any scaling from a user gesture
+      e.preventDefault();
+      gestureStartScale = e.scale;
+
+      this.scaleGestureTargetLocation = new Vector2( event.pageX, event.pageY );
+    } );
+
+    window.addEventListener( 'gesturechange', ( e ) => {
+      e.preventDefault();
+
+      const newScale = this.sourceScale + e.scale - gestureStartScale;
+      this.setDestinationScale( newScale );
+    } );
+
     document.addEventListener( 'keydown', ( event ) => {
       const keyCode = event.keyCode;
 
@@ -243,7 +267,7 @@ define( function( require ) {
 
     if ( this._animate ) {
       timer.addListener( ( dt ) => {
-        if ( this.destinationLocation || this.destinationScale ) {
+        if ( this.animating ) {
           this.animateToTargets( dt );
         }
       } );
@@ -288,7 +312,7 @@ define( function( require ) {
     getNextDiscreteScale: function( event, target, zoomIn ) {
 
       const currentScale = this.getCurrentScale();
-      const atDiscreteScale = _.includes( this.discreteScales, currentScale );
+      const atDiscreteScale = _.includes( this.discreteScales, this.destinationScale );
 
       let discreteScale = currentScale;
 
@@ -299,9 +323,6 @@ define( function( require ) {
         if ( nextIndex >= 0 && nextIndex < this.discreteScales.length ) {
           const scale = this.discreteScales[ nextIndex ];
           discreteScale = scale;
-
-          // const keyPress = new KeyPress( event, this._targetNode, scale );
-          // this.repositionFromKeys( keyPress );
 
           this.discreteScaleIndex = nextIndex;
         }
@@ -347,7 +368,7 @@ define( function( require ) {
         'MultiListener down trail does not include targetNode?' );
 
       // stop all animation when user clicks/touches
-      this.destinationLocation = null;
+      this.setDestinationLocation( this.sourceLocation );
 
       var press = new Press( event.pointer, event.trail.subtrailTo( this._targetNode, false ) );
 
@@ -399,14 +420,18 @@ define( function( require ) {
       // prevent all default from wheel input
       event.domEvent.preventDefault();
 
-      if ( scenery.Display.keyStateTracker.ctrlKeyDown ) {
+      // on a rackpad, he deltaY for a zoom operation has decimals and
+      const deltaDecimals = Util.numberOfDecimalPlaces( event.domEvent.deltaY );
+      const ctrlKeyDown = scenery.Display.keyStateTracker.ctrlKeyDown;
+
+      if ( deltaDecimals > 0 || ctrlKeyDown ) {
         const scaleDelta = wheel.up ? 0.2 : -0.2;
         const nextScale = this.limitScale( this.getCurrentScale() + scaleDelta );
 
         if ( this._animate ) {
-          this.destinationScale = nextScale;
+          this.setDestinationScale( nextScale );
+          this.scaleGestureTargetLocation = wheel.targetPoint;
           this.setDestinationLocation( wheel.targetPoint );
-          // this.destinationLocation = wheel.targetPoint;
         }
         else {
           const nextScale = this.getNextDiscreteScale( event, this._targetNode, wheel.up );
@@ -424,7 +449,6 @@ define( function( require ) {
         if ( this._animate ) {
           const translationDelta = wheel.translationVector.withMagnitude( 10 );
           this.setDestinationLocation( this.sourceLocation.plus( translationDelta ) );
-          // this.destinationLocation = this.sourceLocation.plus( translationDelta );
 
           this._modifyAnimationVelocity = ( velocity ) => {
             const deltas = new Vector2( 2 + Math.abs( event.domEvent.deltaX ) / 10, 2 + Math.abs( event.domEvent.deltaY ) / 10 );
@@ -441,45 +465,48 @@ define( function( require ) {
     },
 
     animateToTargets: function( dt ) {
-      const locationDirty = this.destinationLocation && !this.destinationLocation.equalsEpsilon( this.sourceLocation, 0.1 );
-      const scaleDirty = this.destinationScale && !Util.equalsEpsilon( this.sourceScale, this.destinationScale, 0.001 );
+      assert && assert( this.destinationLocation !== null, 'initializeLocations must be called at least once before animating' );
+      assert && assert( this.sourceLocation !== null, 'initializeLocations must be called at least once before animating' );
+
+      const locationDirty = !this.destinationLocation.equalsEpsilon( this.sourceLocation, 0.1 );
+      const scaleDirty = !Util.equalsEpsilon( this.sourceScale, this.destinationScale, 0.001 );
 
       if ( locationDirty ) {
+
+        // animate to the location, effectively panning over time without any scaling
         const translationDifference = this.destinationLocation.minus( this.sourceLocation );
-        const translateDirection = translationDifference.normalized();
+
+        let translationDirection = translationDifference;
+        if ( translationDifference.magnitude !== 0 ) {
+          translationDirection = translationDifference.normalized();
+        }
+
+        let translationVelocity = new Vector2( 0, 0 );
 
         // translation velocity is faster the farther away you are from the target
-        const vel = translationDifference.magnitude * 6;
-        this.translationVelocity.setXY( vel, vel );
+        const translationSpeed = translationDifference.magnitude * 6;
+        translationVelocity.setXY( translationSpeed, translationSpeed );
 
-        this.translationVelocity = this._modifyAnimationVelocity( this.translationVelocity );
+        // optionally modify the velocity in cases where you want slower or faster changes
+        translationVelocity = this._modifyAnimationVelocity( translationVelocity );
 
-        const translationMagnitude = this.translationVelocity.timesScalar( dt );
-        const translationDelta = translateDirection.componentTimes( translationMagnitude );
+        // finally determine the final panning translation and apply
+        const translationMagnitude = translationVelocity.timesScalar( dt );
+        const translationDelta = translationDirection.componentTimes( translationMagnitude );
 
         this.panDelta( translationDelta );
-
-        console.log( this.sourceLocation, this.destinationLocation );
       }
-      else {
-        this.destinationLocation = null;
-        this._modifyAnimationVelocity = ( velocity ) => { return velocity; };
-      }
-
-
       if ( scaleDirty ) {
+        assert && assert( this.scaleGestureTargetLocation, 'there must be a scale target point' );
+        const targetInLocalFrame = this._targetNode.globalToLocalPoint( this.scaleGestureTargetLocation );
+        const targetInParentFrame = this._targetNode.globalToParentPoint( this.scaleGestureTargetLocation );
 
         const scaleDifference = ( this.destinationScale - this.sourceScale );
         const scaleDelta = scaleDifference * dt * 6;
-        const scaleMatrix = Matrix3.scaling( ( this.sourceScale + scaleDelta ) / this.sourceScale );
+        this.translateScaleToTarget( targetInLocalFrame, targetInParentFrame, scaleDelta );
 
-        this._targetNode.matrix = scaleMatrix.timesMatrix( this._targetNode.matrix );
-
-        this.sourceScale = this.getCurrentScale();
-        // console.log( this.sourceScale, this.destinationScale );
-      }
-      else {
-        this.destinationScale = null;
+        // after applying the scale, the source position has changed, update destination to match
+        this.setDestinationLocation( this.sourceLocation );
       }
     },
 
@@ -498,6 +525,48 @@ define( function( require ) {
       const singleTargetPoint = this._targetNode.globalToParentPoint( targetPoint );
       var delta = singleTargetPoint.minus( singleInitialPoint );
       this._targetNode.matrix = Matrix3.translationFromVector( delta ).timesMatrix( this._targetNode.getMatrix() );
+    },
+
+    translateScaleToTarget: function( initialPoint, targetPoint, scaleDelta ) {
+
+      // for scale, we first translate to the target point, then apply scale, then translate back to initial point
+      // so that it appears as though we are zooming into the target point
+
+      // This is zooming in on the animated target point - if this looks bad, try zooming in on the destination point
+      var fromInitial = Matrix3.translation( -initialPoint.x, -initialPoint.y );
+      // var toInitial = Matrix3.translation( initialPoint.x, initialPoint.y );
+
+      // const gesturePointInTargetFrame = this._targetNode.globalToParentPoint( this.targetPoint );
+      var toTarget = Matrix3.translation( targetPoint.x, targetPoint.y );
+
+      const nextScale = this.limitScale( this.getCurrentScale() + scaleDelta );
+
+      // because multiplication of scales in matricies is multiplicative.
+      // const scaleForMatrix = ( nextScale ) / this.getCurrentScale();
+
+      // remember that matrices multiply right to left (borrowed from the following)
+      // return translateToTarget.timesMatrix( Matrix3.scaling( newScale ) ).timesMatrix( translateFromLocal );
+      const scaleMatrix = toTarget.timesMatrix( Matrix3.scaling( nextScale ) ).timesMatrix( fromInitial );
+
+      // now apply translation...
+      let totalMatrix = toTarget.timesMatrix( scaleMatrix );
+      totalMatrix = scaleMatrix;
+
+      this._targetNode.matrix = totalMatrix;
+
+
+
+      // the following works pretty well...
+      // const singleInitialPoint = this._targetNode.globalToParentPoint( initialPoint );
+      // const singleTargetPoint = this._targetNode.globalToParentPoint( targetPoint );
+      // const translationDelta = singleTargetPoint.minus( singleInitialPoint );
+
+      // // because matrix multiplication of scales multiplies scale, while matrix multiplication of translation
+      // // adds the values (nextScale = currentScale * otherScale)
+      // const scaleForMatrix = ( this.getCurrentScale() + scaleDelta ) / this.getCurrentScale();
+
+      // this._targetNode.matrix = Matrix3.translationFromVector( translationDelta ).timesMatrix( Matrix3.scaling( scaleForMatrix ) ).timesMatrix( this._targetNode.getMatrix() );
+
     },
 
     /**
@@ -528,15 +597,21 @@ define( function( require ) {
       const newScale = keyPress.scale;
       const currentScale = this.getCurrentScale();
       if ( newScale !== currentScale ) {
-        this._targetNode.matrix = this.computeTranslationScaleToPointMatrix( keyPress.localPoint, keyPress.targetPoint, newScale );
+        // this._targetNode.matrix = this.computeTranslationScaleToPointMatrix( keyPress.localPoint, keyPress.targetPoint, newScale );
+        this.setDestinationScale( newScale );
+        this.computeScaleTargetFromKeyPress();
       }
       else {
 
-        const translationUnitVector = keyPress.right ? new Vector2( -1, 0 ) :
-                                      keyPress.left ? new Vector2( 1, 0 ) :
-                                      keyPress.down ? new Vector2( 0, -1 ) :
-                                      keyPress.up ? new Vector2( 0, 1 ) : null;
-        this._targetNode.matrix = this.computeTranslationDeltaMatrix( translationUnitVector, 80 );
+        const translationUnitVector = keyPress.right ? new Vector2( 1, 0 ) :
+                                      keyPress.left ? new Vector2( -1, 0 ) :
+                                      keyPress.down ? new Vector2( 0, 1 ) :
+                                      keyPress.up ? new Vector2( 0, -1 ) : null;
+
+        assert && assert( translationUnitVector, 'no translation vector, wheel caught correctly?' );
+        const arrowKeyTranslationVector = translationUnitVector.withMagnitude( 80 );
+        this.setDestinationLocation( this.sourceLocation.plus( arrowKeyTranslationVector ) );
+        // this._targetNode.matrix = this.computeTranslationDeltaMatrix( translationUnitVector, 80 );
       }
 
 
@@ -558,6 +633,11 @@ define( function( require ) {
       // TODO: handle interrupted?
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
+    },
+
+    stopInProgressRepositions: function() {
+      this.setDestinationScale( this.sourceScale );
+      this.setDestinationLocation( this.sourceLocation );
     },
 
     movePress: function( press ) {
@@ -699,6 +779,38 @@ define( function( require ) {
      */
     computeTranslationDeltaMatrix: function( translationVector, magnitude ) {
       return Matrix3.translationFromVector( translationVector.withMagnitude( magnitude ) ).timesMatrix( this._targetNode.getMatrix() );
+    },
+
+    /**
+     * Determines and sets the target location for scale from a key press. Will be the focused node if a node has focus,
+     * otherwise the first focusable node if there is one (since this is usually the most important item in the sim )
+     * otherwise, the top left corner of the screen.
+     * @private
+     */
+    computeScaleTargetFromKeyPress: function() {
+
+      // default cause, scale target will be the origin of the screen, top left
+      let globalPoint = new Vector2( 0, 0 );
+
+      const focusedNode = scenery.Display.focusedNode;
+      const firstFocusable = AccessibilityUtil.getNextFocusable();
+      if ( focusedNode ) {
+        globalPoint = focusedNode.parentToGlobalPoint( focusedNode.center );
+      }
+      else if ( firstFocusable !== document.body ) {
+
+        // just in case the browser returns something unexpected, we catch it loudly
+        assert && assert( document.body.contains( firstFocusable ), 'focusable should be attached to the body' );
+
+        // assumes that DOM elements are correctly positioned - an alternative to find the Node bounds could be
+        // to use Trail.fromUniqueId, but that function requires a reference to the root of the scene graph...
+        const centerX = firstFocusable.offsetLeft + firstFocusable.offsetWidth / 2;
+        const centerY = firstFocusable.offsetTop + firstFocusable.offsetHeight / 2;
+        globalPoint.setXY( centerX, centerY );
+      }
+
+      console.log( globalPoint );
+      this.scaleGestureTargetLocation = globalPoint;
     },
 
     /**
@@ -855,9 +967,17 @@ define( function( require ) {
   }
 
   inherit( Object, Press, {
+
+    /**
+     * Compute the local point for this press, the global point in the local coordinate frame.
+     */
     recomputeLocalPoint: function() {
       this.localPoint = this.trail.globalToLocalPoint( this.pointer.point );
     },
+
+    /**
+     * Compute the target point for this press, the global point in the parent coordinate frame.
+     */
     getTargetPoint() {
       return this.trail.globalToParentPoint( this.pointer.point );
     },

@@ -82,7 +82,7 @@ define( function( require ) {
 
     /**
      * Returns whether or not plus key is pressed down, since equals and plus keys share the same keycode.
-     * 
+     *
      * @param {DOMEvent}  event
      * @returns {boolean}
      */
@@ -94,7 +94,7 @@ define( function( require ) {
 
     /**
      * Returns a guess for equals key pressed down since equals and plus keys share the same keycode.
-     * 
+     *
      * @param {DOMEvent} event
      * @returns {boolean}
      */
@@ -108,7 +108,7 @@ define( function( require ) {
      * Returns true of the keyboard input indicates that a zoom command was initiated. Different keys are checked
      * on mac devices (which go through the Cmd key) and windows devices (which use the ctrl modifier). The cmd key
      * is not considered a modifier key so we have to determine whether or not it is down by using KeyStateTracker.
-     * 
+     *
      * @param {DOMEvent} keyStateTracker
      * @param {boolean} zoomIn - do you want to check for zoom in or zoom out?
      * @returns {boolean}
@@ -126,7 +126,7 @@ define( function( require ) {
      *
      * TODO: I suspect that these zoom specific functions should be moved out of KeyboardUtil.js
      * @param {DOMEvent} event
-     * @returns {boolean}      
+     * @returns {boolean}
      */
     isZoomResetCommand: function ( event ) {
 
