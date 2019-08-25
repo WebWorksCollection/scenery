@@ -189,6 +189,9 @@ define( function( require ) {
     resetTransform: function() {
       MultiListener.prototype.resetTransform.call( this );
       this.correctReposition();
+
+      this.setDestinationLocation( this.sourceLocation );
+      this.setDestinationScale( this.sourceScale );
     },
 
     /**
