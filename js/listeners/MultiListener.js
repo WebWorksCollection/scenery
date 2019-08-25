@@ -312,23 +312,20 @@ define( function( require ) {
     getNextDiscreteScale: function( event, target, zoomIn ) {
 
       const currentScale = this.getCurrentScale();
-      const atDiscreteScale = _.includes( this.discreteScales, this.destinationScale );
 
-      let discreteScale = currentScale;
-
-      if ( atDiscreteScale && currentScale ) {
-        const indexDelta = zoomIn ? 1 : -1;
-        const nextIndex = this.discreteScaleIndex + indexDelta;
-
-        if ( nextIndex >= 0 && nextIndex < this.discreteScales.length ) {
-          const scale = this.discreteScales[ nextIndex ];
-          discreteScale = scale;
-
-          this.discreteScaleIndex = nextIndex;
+      let nearestIndex;
+      let distanceToCurrentScale = Number.POSITIVE_INFINITY;
+      for ( let i = 0; i < this.discreteScales.length; i++ ) {
+        const distance = Math.abs( this.discreteScales[ i ] - currentScale );
+        if ( distance < distanceToCurrentScale ) {
+          distanceToCurrentScale = distance;
+          nearestIndex = i;
         }
       }
 
-      return discreteScale;
+      let nextIndex = zoomIn ? nearestIndex + 1 : nearestIndex - 1;
+      nextIndex = Util.clamp( nextIndex, 0, this.discreteScales.length - 1 );
+      return this.discreteScales[ nextIndex ];
     },
 
     findPress: function( pointer ) {
