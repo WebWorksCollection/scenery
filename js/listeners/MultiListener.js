@@ -422,7 +422,7 @@ define( function( require ) {
       const ctrlKeyDown = scenery.Display.keyStateTracker.ctrlKeyDown;
 
       if ( deltaDecimals > 0 || ctrlKeyDown ) {
-        const scaleDelta = wheel.up ? 0.2 : -0.2;
+        const scaleDelta = wheel.up ? 0.5 : -0.5;
         const nextScale = this.limitScale( this.getCurrentScale() + scaleDelta );
 
         if ( this._animate ) {
