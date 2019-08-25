@@ -428,7 +428,6 @@ define( function( require ) {
         if ( this._animate ) {
           this.setDestinationScale( nextScale );
           this.scaleGestureTargetLocation = wheel.targetPoint;
-          this.setDestinationLocation( wheel.targetPoint );
         }
         else {
           const nextScale = this.getNextDiscreteScale( event, this._targetNode, wheel.up );
