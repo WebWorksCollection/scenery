@@ -79,8 +79,6 @@ define( function( require ) {
     this.sourceScale = 1;
     this.destinationScale = 1;
 
-    this._modifyAnimationVelocity = ( velocity ) => { return velocity; };
-
     // @private {Array.<Press>}
     this._presses = [];
 
@@ -443,17 +441,8 @@ define( function( require ) {
         }
 
         if ( this._animate ) {
-          const translationDelta = wheel.translationVector.withMagnitude( 10 );
+          const translationDelta = wheel.translationVector;
           this.setDestinationLocation( this.sourceLocation.plus( translationDelta ) );
-
-          this._modifyAnimationVelocity = ( velocity ) => {
-            const deltas = new Vector2( 2 + Math.abs( event.domEvent.deltaX ) / 10, 2 + Math.abs( event.domEvent.deltaY ) / 10 );
-            return velocity.componentTimes( deltas );
-          };
-        }
-        else {
-          // at the end of a wheel event we may receive the event without any direction (deltaX/deltaY)
-          this._targetNode.matrix = this.computeTranslationDeltaMatrix( wheel.translationVector,  );
         }
       }
 
@@ -477,14 +466,9 @@ define( function( require ) {
           translationDirection = translationDifference.normalized();
         }
 
-        let translationVelocity = new Vector2( 0, 0 );
-
         // translation velocity is faster the farther away you are from the target
         const translationSpeed = translationDifference.magnitude * 6;
-        translationVelocity.setXY( translationSpeed, translationSpeed );
-
-        // optionally modify the velocity in cases where you want slower or faster changes
-        translationVelocity = this._modifyAnimationVelocity( translationVelocity );
+        const translationVelocity = new Vector2( translationSpeed, translationSpeed );
 
         // finally determine the final panning translation and apply
         const translationMagnitude = translationVelocity.timesScalar( dt );
@@ -607,7 +591,6 @@ define( function( require ) {
         assert && assert( translationUnitVector, 'no translation vector, wheel caught correctly?' );
         const arrowKeyTranslationVector = translationUnitVector.withMagnitude( 80 );
         this.setDestinationLocation( this.sourceLocation.plus( arrowKeyTranslationVector ) );
-        // this._targetNode.matrix = this.computeTranslationDeltaMatrix( translationUnitVector, 80 );
       }
 
 
@@ -994,9 +977,10 @@ define( function( require ) {
       this.right = event.domEvent.deltaX > 0;
       this.left = event.domEvent.deltaX < 0;
 
-      const verticalTranslation = this.up ? -1 : this.down ? 1 : 0;
-      const horizontalTranslation = this.right ? 1 : this.left ? -1 : 0;
-      this.translationVector = new Vector2( horizontalTranslation, verticalTranslation ).normalize();
+      // the DOMEvent specifies a translation delta that looks appropriate, and works well in different cases like mouse
+      // wheel and trackpad which both trigger wheel events, but trigger them at different rates with different
+      // deltaX/deltaY values
+      this.translationVector = new Vector2( event.domEvent.deltaX, event.domEvent.deltaY );
     }
   }
 
