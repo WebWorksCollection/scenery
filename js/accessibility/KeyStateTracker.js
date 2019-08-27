@@ -12,6 +12,7 @@ define( require => {
   'use strict';
 
   // modules
+  const Emitter = require( 'AXON/Emitter' );
   const KeyboardUtil = require( 'SCENERY/accessibility/KeyboardUtil' );
   const scenery = require( 'SCENERY/scenery' );
   const timer = require( 'AXON/timer' );
@@ -31,6 +32,12 @@ define( require => {
       this._disposeKeystateTracker = () => {
         timer.removeListener( stepListener );
       };
+
+      // emits events when keyup/keydown updates are received. Useful if this listener is being updated somewhere else
+      // already and you cannot attach another listener to a Node to know when to check the keyState for changes. These
+      // will emit after any updates to the keyState so that keystate is up to date in time for listeners.
+      this.keydownEmitter = new Emitter( { validators: [ { valueType: Event } ] } ); // valueType is a native DOM event
+      this.keyupEmitter = new Emitter( { validators: [ { valueType: Event } ] } );
 
       // @private - whether or not this KeyStateTracker is attached to the body.
       this.attachedToBody = false;
@@ -82,6 +89,9 @@ define( require => {
           timeDown: 0 // in ms
         };
       }
+
+      // keydown update received, notify listeners
+      this.keydownEmitter.emit( domEvent );
     }
 
     /**
@@ -150,6 +160,9 @@ define( require => {
       if ( this.isKeyDown( keyCode ) ) {
         delete this.keyState[ keyCode ];
       }
+
+      // keyup event received, notify listeners
+      this.keyupEmitter.emit( domEvent );
     }
 
     /**

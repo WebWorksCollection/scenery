@@ -15,8 +15,6 @@
 define( function( require ) {
   'use strict';
 
-  const AccessibilityUtil = require( 'SCENERY/accessibility/AccessibilityUtil' );
-  const KeyboardUtil = require( 'SCENERY/accessibility/KeyboardUtil' );
   var arrayRemove = require( 'PHET_CORE/arrayRemove' );
   var inherit = require( 'PHET_CORE/inherit' );
   var Matrix = require( 'DOT/Matrix' );
@@ -25,8 +23,6 @@ define( function( require ) {
   var scenery = require( 'SCENERY/scenery' );
   var SingularValueDecomposition = require( 'DOT/SingularValueDecomposition' );
   var Vector2 = require( 'DOT/Vector2' );
-  var timer = require( 'AXON/timer' );
-  var Util = require( 'DOT/Util' );
 
   /**
    * @constructor
@@ -44,7 +40,6 @@ define( function( require ) {
       allowScale: true,
       allowRotation: true,
       allowMultitouchInterruption: true,
-      animate: true,
 
       // limits for scaling
       minScale: 1, // TODO: values less than 1 are currently not supported
@@ -53,31 +48,19 @@ define( function( require ) {
 
     // TODO: type checks for options
 
-    // @private {Array.<number>} - scale can change in discrete jumps from certain types of input
-    this.discreteScales = calculateDiscreteScales( options.minScale, options.maxScale );
-
+    // @protected
     this._targetNode = targetNode;
 
-    this.discreteScaleIndex = 0;
-
+    // @private - see options
     this._mouseButton = options.mouseButton;
     this._pressCursor = options.pressCursor;
     this._allowScale = options.allowScale;
     this._allowRotation = options.allowRotation;
     this._allowMultitouchInterruption = options.allowMultitouchInterruption;
+
+    // @protected
     this._minScale = options.minScale;
     this._maxScale = options.maxScale;
-    this._animate = options.animate;
-
-    this.animating = false;
-
-    this._calculateDestinationLocation = null;
-
-    this.sourceLocation = null;
-    this.destinationLocation = null;
-    this.scaleGestureTargetLocation = null;
-    this.sourceScale = 1;
-    this.destinationScale = 1;
 
     // @private {Array.<Press>}
     this._presses = [];
@@ -159,172 +142,11 @@ define( function( require ) {
         sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
       }
     };
-
-    let gestureStartScale = 1;
-
-    // Warning: NON STANDARD, see https://developer.apple.com/documentation/webkitjs/gestureevent for
-    // documentation and additional info
-    // However, it is the only way to detect trackpad input on macOS Safari
-    // NOTE: Verify these don't interfere with other guestures on touch screens?
-    // NOTE: Perhaps have this event go through scenery?
-    window.addEventListener('gesturestart', ( e ) => {
-
-      // don't allow the syste to do any scaling from a user gesture
-      e.preventDefault();
-      gestureStartScale = e.scale;
-
-      this.scaleGestureTargetLocation = new Vector2( event.pageX, event.pageY );
-    } );
-
-    window.addEventListener( 'gesturechange', ( e ) => {
-      e.preventDefault();
-
-      const newScale = this.sourceScale + e.scale - gestureStartScale;
-      this.setDestinationScale( newScale );
-    } );
-
-    document.addEventListener( 'keydown', ( event ) => {
-      const keyCode = event.keyCode;
-
-      if ( KeyboardUtil.isZoomCommand( event, true ) ) {
-        sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener keyboard zoom in' );
-        sceneryLog && sceneryLog.InputListener && sceneryLog.push();
-
-        // don't let browser zoom in
-        event.preventDefault();
-
-        // discrete zoom in, snapping to nearest zoom in list of discrete steps
-        const nextScale = this.getNextDiscreteScale( event, this._targetNode, true );
-
-        if ( nextScale !== this.getCurrentScale() ) {
-          const keyPress = new KeyPress( event, this._targetNode, nextScale );
-          this.repositionFromKeys( keyPress );
-        }
-
-        sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
-      }
-      else if ( KeyboardUtil.isZoomCommand( event, false ) ) {
-        sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener plus key zoom' );
-        sceneryLog && sceneryLog.InputListener && sceneryLog.push();
-
-        // don't let browser zoom out
-        event.preventDefault();
-
-        // zoom out 10 percent
-        // this.discreteZoom( event, this.targetNode, false );
-        const nextScale = this.getNextDiscreteScale( event, this._targetNode, false );
-
-        if ( nextScale !== this.getCurrentScale() ) {
-          const keyPress = new KeyPress( event, this._targetNode, nextScale );
-          this.repositionFromKeys( keyPress );
-        }
-
-        sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
-      }
-      else if ( KeyboardUtil.isZoomResetCommand( event ) ) {
-        sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener keyboard reset' );
-        sceneryLog && sceneryLog.InputListener && sceneryLog.push();
-
-        // only prevent default and reset if zooming in non-natively, so that for native magnification we can revert
-        // still reset from this key command
-        if ( this.isTransformApplied() ) {
-          event.preventDefault();
-          this.resetTransform();
-        }
-
-        sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
-      }
-
-      if ( KeyboardUtil.isArrowKey( keyCode ) ) {
-        const displayFocus = scenery.Display.focusProperty.get();
-
-        // for now, we disable panning with a keyboard if the element by default uses arrow keys for interaction
-        // OR the node has any keydown/keyup listeners
-        let focusHasKeyListeners = false;
-        let elementUsesKeys = false;
-        if ( displayFocus ) {
-
-          const focusTrail = scenery.Display.focusProperty.get().trail;
-          const focusNode = focusTrail.lastNode();
-
-          focusHasKeyListeners = this.hasKeyListeners( focusTrail );
-          elementUsesKeys = _.includes( AccessibilityUtil.ELEMENTS_USE_ARROW_KEYS, focusNode.tagName.toUpperCase() );
-        }
-
-        if ( displayFocus === null || ( !focusHasKeyListeners && !elementUsesKeys ) ) {
-          sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener arrow key down' );
-          sceneryLog && sceneryLog.InputListener && sceneryLog.push();
-
-          const keyPress = new KeyPress( event, this._targetNode, this.getCurrentScale() );
-          this.repositionFromKeys( keyPress );
-
-          sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
-        }
-      }
-    } );
-
-    if ( this._animate ) {
-      timer.addListener( ( dt ) => {
-        if ( this.animating ) {
-          this.animateToTargets( dt );
-        }
-      } );
-    }
   }
 
   scenery.register( 'MultiListener', MultiListener );
 
   inherit( Object, MultiListener, {
-
-    /**
-     * Returns true if the provided trail has any listeners that use keydown or keyup. If we find such a listener
-     * we want to prevent panning with a keyboard. Excludes this listener in the search, and stops searching once we
-     * hit it.
-     * @param {Trail}  trail
-     * @returns {boolean}
-     */
-    hasKeyListeners: function( trail ) {
-      let hasKeyListeners = false;
-      let foundThisListener = false;
-
-      // search backwards because it is most likely that nodes adjacent to the focus have a keydown/keyup listener,
-      // and so we can stop searching when we find this MultiListener
-      for ( let i = trail.length - 1; i >= 0; i-- ) {
-        const node = trail.nodes[ i ];
-        hasKeyListeners = _.some( node.inputListeners, ( listener ) => {
-          if ( !foundThisListener && listener === this) {
-            foundThisListener = true;
-          }
-          const hasListeners = _.intersection( _.keys( listener ), [ 'keydown', 'keyup' ] ).length > 0;
-
-          return ( !foundThisListener && hasListeners );
-        } );
-
-        // don't keep searching if we find this listener or any with the above listeners
-        if ( hasKeyListeners || foundThisListener ) { break; }
-      }
-
-      return hasKeyListeners;
-    },
-
-    getNextDiscreteScale: function( event, target, zoomIn ) {
-
-      const currentScale = this.getCurrentScale();
-
-      let nearestIndex;
-      let distanceToCurrentScale = Number.POSITIVE_INFINITY;
-      for ( let i = 0; i < this.discreteScales.length; i++ ) {
-        const distance = Math.abs( this.discreteScales[ i ] - currentScale );
-        if ( distance < distanceToCurrentScale ) {
-          distanceToCurrentScale = distance;
-          nearestIndex = i;
-        }
-      }
-
-      let nextIndex = zoomIn ? nearestIndex + 1 : nearestIndex - 1;
-      nextIndex = Util.clamp( nextIndex, 0, this.discreteScales.length - 1 );
-      return this.discreteScales[ nextIndex ];
-    },
 
     findPress: function( pointer ) {
       for ( var i = 0; i < this._presses.length; i++ ) {
@@ -362,9 +184,6 @@ define( function( require ) {
       assert && assert( _.includes( event.trail.nodes, this._targetNode ),
         'MultiListener down trail does not include targetNode?' );
 
-      // stop all animation when user clicks/touches
-      this.setDestinationLocation( this.sourceLocation );
-
       var press = new Press( event.pointer, event.trail.subtrailTo( this._targetNode, false ) );
 
       if ( !event.pointer.isAttached() ) {
@@ -389,106 +208,17 @@ define( function( require ) {
     },
 
     /**
-     * Input listener, part of the Scenery Input API.
+     * Translate the target node in a direction specified by deltaVector.
+     * @public
      *
-     * TODO: should this be attached to the document like the keydown listeners?
+     * @param {Vector2} deltaVector
      */
-    wheel: function( event ) {
-      sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener wheel' );
-      sceneryLog && sceneryLog.InputListener && sceneryLog.push();
-
-      const wheel = new Wheel( event, this._targetNode );
-      this.repositionFromWheel( wheel, event );
-
-      sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
+    translateDelta: function( deltaVector ) {
+      const targetPoint = this._targetNode.globalToParentPoint( this.panBounds.center );
+      const sourcePoint = targetPoint.plus( deltaVector );
+      this.translateToTarget( sourcePoint, targetPoint );
     },
 
-    /**
-     * Handle reposition from wheel input, which may zoom or pan, depending on if the ctrl key is pressed down.
-     *
-     * @param   {Wheel} wheel
-     */
-    repositionFromWheel: function( wheel, event ) {
-      sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener reposition' );
-      sceneryLog && sceneryLog.InputListener && sceneryLog.push();
-
-      // prevent all default from wheel input
-      event.domEvent.preventDefault();
-
-      // on a rackpad, he deltaY for a zoom operation has decimals and
-      const deltaDecimals = Util.numberOfDecimalPlaces( event.domEvent.deltaY );
-      const ctrlKeyDown = scenery.Display.keyStateTracker.ctrlKeyDown;
-
-      if ( deltaDecimals > 0 || ctrlKeyDown ) {
-        const scaleDelta = wheel.up ? 0.5 : -0.5;
-        const nextScale = this.limitScale( this.getCurrentScale() + scaleDelta );
-
-        if ( this._animate ) {
-          this.setDestinationScale( nextScale );
-          this.scaleGestureTargetLocation = wheel.targetPoint;
-        }
-        else {
-          const nextScale = this.getNextDiscreteScale( event, this._targetNode, wheel.up );
-          this._targetNode.matrix = this.computeTranslationScaleToPointMatrix( wheel.localPoint, wheel.targetPoint, nextScale );
-        }
-      }
-      else {
-
-        // if we are zoomed in from our "custom" method, prevent default so that we don't pan natively at the same
-        // time, and so the browser doesn't try to go forward/back a page if we are natively zoomed all the way out
-        if ( this.isTransformApplied() ) {
-          event.domEvent.preventDefault();
-        }
-
-        if ( this._animate ) {
-          const translationDelta = wheel.translationVector;
-          this.setDestinationLocation( this.sourceLocation.plus( translationDelta ) );
-        }
-      }
-
-      sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
-    },
-
-    animateToTargets: function( dt ) {
-      assert && assert( this.destinationLocation !== null, 'initializeLocations must be called at least once before animating' );
-      assert && assert( this.sourceLocation !== null, 'initializeLocations must be called at least once before animating' );
-
-      const locationDirty = !this.destinationLocation.equalsEpsilon( this.sourceLocation, 0.1 );
-      const scaleDirty = !Util.equalsEpsilon( this.sourceScale, this.destinationScale, 0.001 );
-
-      if ( locationDirty ) {
-
-        // animate to the location, effectively panning over time without any scaling
-        const translationDifference = this.destinationLocation.minus( this.sourceLocation );
-
-        let translationDirection = translationDifference;
-        if ( translationDifference.magnitude !== 0 ) {
-          translationDirection = translationDifference.normalized();
-        }
-
-        // translation velocity is faster the farther away you are from the target
-        const translationSpeed = translationDifference.magnitude * 6;
-        const translationVelocity = new Vector2( translationSpeed, translationSpeed );
-
-        // finally determine the final panning translation and apply
-        const translationMagnitude = translationVelocity.timesScalar( dt );
-        const translationDelta = translationDirection.componentTimes( translationMagnitude );
-
-        this.panDelta( translationDelta );
-      }
-      if ( scaleDirty ) {
-        assert && assert( this.scaleGestureTargetLocation, 'there must be a scale target point' );
-        const targetInLocalFrame = this._targetNode.globalToLocalPoint( this.scaleGestureTargetLocation );
-        const targetInParentFrame = this._targetNode.globalToParentPoint( this.scaleGestureTargetLocation );
-
-        const scaleDifference = ( this.destinationScale - this.sourceScale );
-        const scaleDelta = scaleDifference * dt * 6;
-        this.translateScaleToTarget( targetInLocalFrame, targetInParentFrame, scaleDelta );
-
-        // after applying the scale, the source position has changed, update destination to match
-        this.setDestinationLocation( this.sourceLocation );
-      }
-    },
 
     /**
      * Translate the targetNode from a local point to a target point. Both points should be in the global coordinate
@@ -507,46 +237,29 @@ define( function( require ) {
       this._targetNode.matrix = Matrix3.translationFromVector( delta ).timesMatrix( this._targetNode.getMatrix() );
     },
 
-    translateScaleToTarget: function( initialPoint, targetPoint, scaleDelta ) {
+    /**
+     * Translate and scale to a target point. The result of this function should make it appear that we are scaling
+     * in or out of a particular point on the target node. This actually modifies the matrix of the target node. To
+     * accomplish zooming into a particular point, we compute a matrix that would transform the target node from
+     * the target point, then apply scale, then translate the target back to the target point.
+     * @public
+     *
+     * @param {Vector2} globalPoint - point to zoom in on, in the global coordinate frame
+     * @param {number} scaleDelta
+     */
+    translateScaleToTarget: function( globalPoint, scaleDelta ) {
+      const pointInLocalFrame = this._targetNode.globalToLocalPoint( globalPoint );
+      const pointInParentFrame = this._targetNode.globalToParentPoint( globalPoint );
 
-      // for scale, we first translate to the target point, then apply scale, then translate back to initial point
-      // so that it appears as though we are zooming into the target point
-
-      // This is zooming in on the animated target point - if this looks bad, try zooming in on the destination point
-      var fromInitial = Matrix3.translation( -initialPoint.x, -initialPoint.y );
-      // var toInitial = Matrix3.translation( initialPoint.x, initialPoint.y );
-
-      // const gesturePointInTargetFrame = this._targetNode.globalToParentPoint( this.targetPoint );
-      var toTarget = Matrix3.translation( targetPoint.x, targetPoint.y );
+      var fromLocalPoint = Matrix3.translation( -pointInLocalFrame.x, -pointInLocalFrame.y );
+      var toTargetPoint = Matrix3.translation( pointInParentFrame.x, pointInParentFrame.y );
 
       const nextScale = this.limitScale( this.getCurrentScale() + scaleDelta );
 
-      // because multiplication of scales in matricies is multiplicative.
-      // const scaleForMatrix = ( nextScale ) / this.getCurrentScale();
-
-      // remember that matrices multiply right to left (borrowed from the following)
-      // return translateToTarget.timesMatrix( Matrix3.scaling( newScale ) ).timesMatrix( translateFromLocal );
-      const scaleMatrix = toTarget.timesMatrix( Matrix3.scaling( nextScale ) ).timesMatrix( fromInitial );
-
-      // now apply translation...
-      let totalMatrix = toTarget.timesMatrix( scaleMatrix );
-      totalMatrix = scaleMatrix;
-
-      this._targetNode.matrix = totalMatrix;
-
-
-
-      // the following works pretty well...
-      // const singleInitialPoint = this._targetNode.globalToParentPoint( initialPoint );
-      // const singleTargetPoint = this._targetNode.globalToParentPoint( targetPoint );
-      // const translationDelta = singleTargetPoint.minus( singleInitialPoint );
-
-      // // because matrix multiplication of scales multiplies scale, while matrix multiplication of translation
-      // // adds the values (nextScale = currentScale * otherScale)
-      // const scaleForMatrix = ( this.getCurrentScale() + scaleDelta ) / this.getCurrentScale();
-
-      // this._targetNode.matrix = Matrix3.translationFromVector( translationDelta ).timesMatrix( Matrix3.scaling( scaleForMatrix ) ).timesMatrix( this._targetNode.getMatrix() );
-
+      // we first translate from target point, then apply scale, then translate back to target point ()
+      // so that it appears as though we are zooming into that point
+      const scaleMatrix = toTargetPoint.timesMatrix( Matrix3.scaling( nextScale ) ).timesMatrix( fromLocalPoint );
+      this._targetNode.matrix = scaleMatrix;
     },
 
     /**
@@ -557,7 +270,7 @@ define( function( require ) {
     },
 
     /**
-     * Returns true if some transformation is applied to the target node.
+     * Returns true if some transformation is applied to the target node (within some allowed error).
      * @returns {boolean}
      */
     isTransformApplied() {
@@ -593,7 +306,6 @@ define( function( require ) {
         this.setDestinationLocation( this.sourceLocation.plus( arrowKeyTranslationVector ) );
       }
 
-
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
     },
 
@@ -612,11 +324,6 @@ define( function( require ) {
       // TODO: handle interrupted?
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
-    },
-
-    stopInProgressRepositions: function() {
-      this.setDestinationScale( this.sourceScale );
-      this.setDestinationLocation( this.sourceLocation );
     },
 
     movePress: function( press ) {
@@ -750,64 +457,6 @@ define( function( require ) {
       return Matrix3.translationFromVector( sum.dividedScalar( this._presses.length ) );
     },
 
-    /**
-     * Compute a matrix that will translate the node by a pre-described direction and magnitude.
-     *
-     * @param {Vector2} translationVector
-     * @param {number} magnitude - magnitude of the translation vector
-     */
-    computeTranslationDeltaMatrix: function( translationVector, magnitude ) {
-      return Matrix3.translationFromVector( translationVector.withMagnitude( magnitude ) ).timesMatrix( this._targetNode.getMatrix() );
-    },
-
-    /**
-     * Determines and sets the target location for scale from a key press. Will be the focused node if a node has focus,
-     * otherwise the first focusable node if there is one (since this is usually the most important item in the sim )
-     * otherwise, the top left corner of the screen.
-     * @private
-     */
-    computeScaleTargetFromKeyPress: function() {
-
-      // default cause, scale target will be the origin of the screen, top left
-      let globalPoint = new Vector2( 0, 0 );
-
-      const focusedNode = scenery.Display.focusedNode;
-      const firstFocusable = AccessibilityUtil.getNextFocusable();
-      if ( focusedNode ) {
-        globalPoint = focusedNode.parentToGlobalPoint( focusedNode.center );
-      }
-      else if ( firstFocusable !== document.body ) {
-
-        // just in case the browser returns something unexpected, we catch it loudly
-        assert && assert( document.body.contains( firstFocusable ), 'focusable should be attached to the body' );
-
-        // assumes that DOM elements are correctly positioned - an alternative to find the Node bounds could be
-        // to use Trail.fromUniqueId, but that function requires a reference to the root of the scene graph...
-        const centerX = firstFocusable.offsetLeft + firstFocusable.offsetWidth / 2;
-        const centerY = firstFocusable.offsetTop + firstFocusable.offsetHeight / 2;
-        globalPoint.setXY( centerX, centerY );
-      }
-
-      console.log( globalPoint );
-      this.scaleGestureTargetLocation = globalPoint;
-    },
-
-    /**
-     * Rather than translating and scaling to a point defined by Presses, we translate and scale to a
-     * predefined point
-     * @returns {}
-     */
-    computeTranslationScaleToPointMatrix: function( localPoint, targetPoint, scale ) {
-
-      var translateFromLocal = Matrix3.translation( -localPoint.x, -localPoint.y );
-      var translateToTarget = Matrix3.translation( targetPoint.x, targetPoint.y );
-
-      // assume same scale in both x and y
-      const newScale = this.limitScale( scale );
-
-      return translateToTarget.timesMatrix( Matrix3.scaling( newScale ) ).timesMatrix( translateFromLocal );
-    },
-
     // @private
     computeTranslationScaleMatrix: function() {
 
@@ -852,6 +501,7 @@ define( function( require ) {
 
     /**
      * Get the current scale on the target node, assuming scale is the same in x and y.
+     * @public
      *
      * @param {number} scale
      * @returns {number}
@@ -962,110 +612,6 @@ define( function( require ) {
     },
     get targetPoint() { return this.getTargetPoint(); }
   } );
-
-  class Wheel extends Press {
-
-    /**
-     * @param {Event} event
-     * @param {Node} targetNode
-     */
-    constructor( event, targetNode ) {
-      super( event.pointer, event.trail.subtrailTo( targetNode, false ) );
-
-      this.up = event.domEvent.deltaY < 0;
-      this.down = event.domEvent.deltaY > 0;
-      this.right = event.domEvent.deltaX > 0;
-      this.left = event.domEvent.deltaX < 0;
-
-      // the DOMEvent specifies a translation delta that looks appropriate, and works well in different cases like mouse
-      // wheel and trackpad which both trigger wheel events, but trigger them at different rates with different
-      // deltaX/deltaY values
-      this.translationVector = new Vector2( event.domEvent.deltaX, event.domEvent.deltaY );
-    }
-  }
-
-  /**
-   * A KeyPress has no associated trail or pointer since the key press will occur globally without a target. It will
-   * also have no concept of a Pointer.
-   */
-  class KeyPress {
-    constructor( event, targetNode, scale ) {
-
-      // @private
-      this.targetNode = targetNode;
-      this.scale = scale;
-      this.localPoint = null;
-
-      // @public (read-only)
-      this.up = event.keyCode === KeyboardUtil.KEY_UP_ARROW;
-      this.down = event.keyCode === KeyboardUtil.KEY_DOWN_ARROW;
-      this.right = event.keyCode === KeyboardUtil.KEY_RIGHT_ARROW;
-      this.left = event.keyCode === KeyboardUtil.KEY_LEFT_ARROW;
-
-      this.recomputeLocalPoint();
-    }
-
-    /**
-     * From a key press, we want to zoom into of the currently focused object and the origin of the display if there
-     * is no focus.
-     */
-    recomputeLocalPoint() {
-      const focusedNode = scenery.Display.focusedNode;
-      if ( focusedNode ) {
-        const globalPoint = focusedNode.parentToGlobalPoint( focusedNode.center );
-        this.localPoint = this.targetNode.globalToLocalPoint( globalPoint );
-      }
-      else {
-        this.localPoint = new Vector2( 0, 0 );
-      }
-    }
-
-    /**
-     * From a key press, we want to zoom into the focused node if that node exists, and into the origin of what is
-     * currently displayed.
-     *
-     * @returns {Vector2}
-     */
-    get targetPoint() {
-      const focusedNode = scenery.Display.focusedNode;
-      if ( focusedNode ) {
-        const globalPoint = focusedNode.parentToGlobalPoint( focusedNode.center );
-        return this.targetNode.globalToParentPoint( globalPoint );
-      }
-      else {
-        return this.targetNode.matrix.timesVector2( new Vector2( 0, 0 ) );
-      }
-    }
-  }
-
-  /**
-   * Helper function, calculates discrete scales between min and max scale limits. Creates exponential steps between
-   * min and max so that you zoom in from high zoom reaches the max faster with fewer key presses. This is standard
-   * behavior for browser zoom.
-   *
-   * @param {number} minScale
-   * @param {number} maxScale
-   * @returns {number}
-   */
-  function calculateDiscreteScales( minScale, maxScale ) {
-
-    // will take this many key presses to reach maximum scale from minimum scale
-    const steps = 8;
-
-    // break the range from min to max scale into steps, then exponentiate
-    const discreteScales = [];
-    for ( let i = 0; i < steps; i++ ) {
-      discreteScales[ i ] = ( maxScale - minScale ) / steps * ( i * i  );
-    }
-
-    // normalize steps back into range of the min and max scale for this listener
-    const discreteScalesMax = discreteScales[ steps - 1 ];
-    for ( let i = 0; i < discreteScales.length; i++ ) {
-      discreteScales[ i ] = minScale + discreteScales[ i ] * ( maxScale - minScale ) / discreteScalesMax;
-    }
-
-    return discreteScales;
-  }
 
   return MultiListener;
 } );

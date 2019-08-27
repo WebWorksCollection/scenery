@@ -580,7 +580,7 @@ define( function( require ) {
         // this._panZoomListener.setPanBounds( new Bounds2( 0, 0, size.width, size.height ) );
 
         // const targetBounds = phet.joist.sim.currentScreenProperty.value.view.bounds.union( phet.joist.sim.navigationBar.bounds );
-        // this._panZoomListener.setTargetBounds( targetBounds ); 
+        // this._panZoomListener.setTargetBounds( targetBounds );
         // this._panZoomListener.setTargetBounds( new Bounds2( 0, 0, size.width, size.height ) );
       // }
 

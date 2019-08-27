@@ -52,9 +52,11 @@ define( function( require ) {
     KEY_N: 78,
     KEY_0: 48,
     KEY_9: 57,
-    KEY_EQUALS:187, // beware that "="" and "+" keys share the same keycode, distinguish with shfitKey DOMEvent property
+    KEY_EQUALS: 187, // beware that "="" and "+" keys share the same keycode, distinguish with shfitKey DOMEvent property
     KEY_PLUS: 187,
     KEY_MINUS: 189,
+    KEY_META_LEFT: 91, // left 'command' key for macOS
+    KEY_META_RIGHT: 93, // right 'command' key for macOS
 
     ARROW_KEYS: [ KEY_RIGHT_ARROW, KEY_LEFT_ARROW, KEY_RIGHT_ARROW, KEY_DOWN_ARROW ],
 
