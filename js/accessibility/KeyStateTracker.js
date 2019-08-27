@@ -332,6 +332,7 @@ define( require => {
         if ( this.blockTrustedEvents && event.isTrusted ) {
           return;
         }
+
         scenery.Display.keyStateTracker.keyupUpdate( event );
       };
 

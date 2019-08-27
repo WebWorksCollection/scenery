@@ -112,7 +112,7 @@ define( require => {
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener wheel' );
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
-      const wheel = new Wheel( this.keyStateTracker, event );
+      const wheel = new Wheel( event );
       this.repositionFromWheel( wheel, event );
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
@@ -273,8 +273,7 @@ define( require => {
       // prevent any native browser zoom and don't allow browser go go 'back' or 'forward' a page
       event.domEvent.preventDefault();
 
-      if ( wheel.isCtrlKeyDown || wheel.isTrackpadZoom ) {
-
+      if ( wheel.isCtrlKeyDown ) {
         const nextScale = this.limitScale( this.getCurrentScale() + wheel.scaleDelta );
         this.scaleGestureTargetLocation = wheel.targetPoint;
         this.setDestinationScale( nextScale );
@@ -604,19 +603,15 @@ define( require => {
   class Wheel {
 
     /**
-     * @param {KeyStateTracker} keyStateTracker
      * @param {Event} event
      */
-    constructor( keyStateTracker, event ) {
+    constructor( event ) {
       const domEvent = event.domEvent;
 
-      // @public (read-only) - is the ctrl key down during this wheel input?
-      this.isCtrlKeyDown = keyStateTracker.ctrlKeyDown;
-
-      // @public (read-only) - Highly likely that user intends to zoom in with their trackpad if there are
-      // a number of decimal places for the dom event deltaY, and this values indicates the amount of zoom for
-      // the gesture. Other wheel events have integer deltas.
-      this.isTrackpadZoom = Util.numberOfDecimalPlaces( event.domEvent.deltaY ) > 0;
+      // @public (read-only) - is the ctrl key down during this wheel input? Cannot use KeyStateTracker because the
+      // ctrl key might be 'down' on this event without going through the keyboard. For example, with a trackpad
+      // the browser sets ctrlKey true with the zoom gesture.
+      this.isCtrlKeyDown = event.domEvent.ctrlKey;
 
       // @public (read-only) - magnitude and direction of scale change from the wheel input
       this.scaleDelta = domEvent.deltaY > 0 ? -0.5 : 0.5;
