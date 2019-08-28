@@ -12,6 +12,7 @@ define( function( require ) {
 
   // modules
   var scenery = require( 'SCENERY/scenery' );
+  const platform = require( 'PHET_CORE/platform' );
 
   var KEY_RIGHT_ARROW = 39;
   var KEY_LEFT_ARROW = 37;
@@ -52,9 +53,13 @@ define( function( require ) {
     KEY_N: 78,
     KEY_0: 48,
     KEY_9: 57,
-    KEY_EQUALS: 187, // beware that "="" and "+" keys share the same keycode, distinguish with shfitKey DOMEvent property
-    KEY_PLUS: 187,
-    KEY_MINUS: 189,
+
+    // beware that "="" and "+" keys share the same keycode, distinguish with shfitKey DOMEvent property
+    // also, these keycodes are different in Firefox, see http://www.javascripter.net/faq/keycodes.htm
+    KEY_EQUALS: platform.firefox ? 61 : 187,
+    KEY_PLUS: platform.firefox ? 61 : 187,
+    KEY_MINUS: platform.firefox ? 173: 189,
+
     KEY_META_LEFT: 91, // left 'command' key for macOS
     KEY_META_RIGHT: 93, // right 'command' key for macOS
 
