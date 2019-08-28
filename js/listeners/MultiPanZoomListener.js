@@ -119,20 +119,8 @@ define( require => {
     }
 
     /**
-     * Added as a listener function through the Scenery Input API. When the user presses down in any way on the target
-     * stop all animations.
-     *
-     * @param {Event} event
-     */
-    down( event ) {
-      super.down( event );
-      this.stopInProgressAnimation();
-    }
-
-    /**
-     * [handleKeyEvent description]
-     * @param   {[type]} domEvent [description]
-     * @returns {[type]}          [description]
+     * Respond to a key event, scaling or zooming into a point depending on the command.
+     * @param {DOMEvent} domEvent
      */
     handleKeyEvent( domEvent ) {
 
@@ -302,6 +290,30 @@ define( require => {
     }
 
     /**
+     * When a new press begins, stop any in progress animation.
+     *
+     * @param {MultiListener.Press} press
+     */
+    addPress( press ) {
+      super.addPress( press );
+      this.stopInProgressAnimation();
+    }
+
+    /**
+     * When presses are removed, reset animation destinations.
+     *
+     * @param {MultiListener.Press} press
+     * @returns {}
+     */
+    removePress( press ) {
+      super.removePress( press );
+
+      if ( this._presses.length === 0 ) {
+        this.stopInProgressAnimation();
+      }
+    }
+
+    /**
      * Pan to a provided Node, attempting to place the node in the center of the transformedPanBounds. It may not end
      * up exactly in the center since we have to make sure panBounds are completely filled with targetNode content.
      * @public
@@ -345,35 +357,38 @@ define( require => {
       const locationDirty = !this.destinationLocation.equalsEpsilon( this.sourceLocation, 0.1 );
       const scaleDirty = !Util.equalsEpsilon( this.sourceScale, this.destinationScale, 0.001 );
 
-      if ( locationDirty ) {
+      // don't animate to targets as long as presses are down
+      if ( this._presses.length === 0 ) {
+        if ( locationDirty ) {
 
-        // animate to the location, effectively panning over time without any scaling
-        const translationDifference = this.destinationLocation.minus( this.sourceLocation );
+          // animate to the location, effectively panning over time without any scaling
+          const translationDifference = this.destinationLocation.minus( this.sourceLocation );
 
-        let translationDirection = translationDifference;
-        if ( translationDifference.magnitude !== 0 ) {
-          translationDirection = translationDifference.normalized();
+          let translationDirection = translationDifference;
+          if ( translationDifference.magnitude !== 0 ) {
+            translationDirection = translationDifference.normalized();
+          }
+
+          // translation velocity is faster the farther away you are from the target
+          const translationSpeed = translationDifference.magnitude * 6;
+          scratchVelocityVector.setXY( translationSpeed, translationSpeed );
+
+          // finally determine the final panning translation and apply
+          const translationMagnitude = scratchVelocityVector.multiplyScalar( dt );
+          const translationDelta = translationDirection.componentTimes( translationMagnitude );
+
+          this.translateDelta( translationDelta );
         }
+        if ( scaleDirty ) {
+          assert && assert( this.scaleGestureTargetLocation, 'there must be a scale target point' );
 
-        // translation velocity is faster the farther away you are from the target
-        const translationSpeed = translationDifference.magnitude * 6;
-        scratchVelocityVector.setXY( translationSpeed, translationSpeed );
+          const scaleDifference = ( this.destinationScale - this.sourceScale );
+          const scaleDelta = scaleDifference * dt * 6;
+          this.translateScaleToTarget( this.scaleGestureTargetLocation, scaleDelta );
 
-        // finally determine the final panning translation and apply
-        const translationMagnitude = scratchVelocityVector.multiplyScalar( dt );
-        const translationDelta = translationDirection.componentTimes( translationMagnitude );
-
-        this.translateDelta( translationDelta );
-      }
-      if ( scaleDirty ) {
-        assert && assert( this.scaleGestureTargetLocation, 'there must be a scale target point' );
-
-        const scaleDifference = ( this.destinationScale - this.sourceScale );
-        const scaleDelta = scaleDifference * dt * 6;
-        this.translateScaleToTarget( this.scaleGestureTargetLocation, scaleDelta );
-
-        // after applying the scale, the source position has changed, update destination to match
-        this.setDestinationLocation( this.sourceLocation );
+          // after applying the scale, the source position has changed, update destination to match
+          this.setDestinationLocation( this.sourceLocation );
+        }
       }
     }
 

@@ -277,38 +277,6 @@ define( function( require ) {
       return !this._targetNode.matrix.equalsEpsilon( Matrix3.IDENTITY, 1e-4 );
     },
 
-    /**
-     * From a KeyPress zoom in or out.
-     * per input event.
-     *
-     * @param  {KeyPress} keyPress
-     */
-    repositionFromKeys: function( keyPress ) {
-      sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener reposition from key press' );
-      sceneryLog && sceneryLog.InputListener && sceneryLog.push();
-
-      const newScale = keyPress.scale;
-      const currentScale = this.getCurrentScale();
-      if ( newScale !== currentScale ) {
-        // this._targetNode.matrix = this.computeTranslationScaleToPointMatrix( keyPress.localPoint, keyPress.targetPoint, newScale );
-        this.setDestinationScale( newScale );
-        this.computeScaleTargetFromKeyPress();
-      }
-      else {
-
-        const translationUnitVector = keyPress.right ? new Vector2( 1, 0 ) :
-                                      keyPress.left ? new Vector2( -1, 0 ) :
-                                      keyPress.down ? new Vector2( 0, 1 ) :
-                                      keyPress.up ? new Vector2( 0, -1 ) : null;
-
-        assert && assert( translationUnitVector, 'no translation vector, wheel caught correctly?' );
-        const arrowKeyTranslationVector = translationUnitVector.withMagnitude( 80 );
-        this.setDestinationLocation( this.sourceLocation.plus( arrowKeyTranslationVector ) );
-      }
-
-      sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
-    },
-
     addPress: function( press ) {
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener addPress' );
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();

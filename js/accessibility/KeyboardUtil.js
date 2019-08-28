@@ -123,7 +123,7 @@ define( function( require ) {
     isZoomCommand: function( event, zoomIn ) {
 
       // TODO: move to platform.js?
-      const modifierKey = window.navigator.platform.includes( 'Mac' ) ? 'metaKey' : 'ctrlKey';
+      const modifierKey = _.includes( window.navigator.platform, 'Mac' ) ? 'metaKey' : 'ctrlKey';
       const zoomKey = zoomIn ? KeyboardUtil.KEY_EQUALS : KeyboardUtil.KEY_MINUS;
       return event[ modifierKey ] && event.keyCode === zoomKey;
     },
@@ -137,7 +137,7 @@ define( function( require ) {
      */
     isZoomResetCommand: function ( event ) {
 
-      const modifierKey = window.navigator.platform.includes( 'Mac' ) ? 'metaKey' : 'ctrlKey';
+      const modifierKey = _.includes( window.navigator.platform, 'Mac' ) ? 'metaKey' : 'ctrlKey';
       return event[ modifierKey ] && event.keyCode === KeyboardUtil.KEY_0;
     }
   };

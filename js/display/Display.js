@@ -865,6 +865,7 @@ define( function( require ) {
 
       // forward all pointer events
       this._domElement.style.msTouchAction = 'none';
+      document.body.style.msContentZooming = 'none'; // for IE11 - must be on body, not sufficient to place on domElement
 
       // don't allow browser to switch between font smoothing methods for text (see https://github.com/phetsims/scenery/issues/431)
       Features.setStyle( this._domElement, Features.fontSmoothing, 'antialiased' );

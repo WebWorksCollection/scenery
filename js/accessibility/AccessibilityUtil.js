@@ -124,7 +124,9 @@ define( function( require ) {
       return false;
     }
     else {
-      return isElementHidden( domElement.parentElement );
+
+      // parentElement is undefined for SVG in Internet explorer
+      return isElementHidden( domElement.parentElement || domElement.parentNode );
     }
   }
 
