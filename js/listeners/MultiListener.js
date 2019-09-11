@@ -41,6 +41,10 @@ define( function( require ) {
       allowRotation: true,
       allowMultitouchInterruption: true,
 
+      // {boolean} - if true, pointer movement after presses will initiate a translation. Can still
+      // be prevented on this listener with Event.preventDefaultBehavior()
+      allowMoveInterruption:  true,
+
       // limits for scaling
       minScale: 1, // TODO: values less than 1 are currently not supported
       maxScale: 4
@@ -57,6 +61,7 @@ define( function( require ) {
     this._allowScale = options.allowScale;
     this._allowRotation = options.allowRotation;
     this._allowMultitouchInterruption = options.allowMultitouchInterruption;
+    this._allowMoveInterruption = options.allowMoveInterruption;
 
     // @protected
     this._minScale = options.minScale;
@@ -116,6 +121,7 @@ define( function( require ) {
       }
     };
 
+    // added to the pointer to support background
     this._backgroundListener = {
       up: function( event ) {
         sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener background up' );
@@ -124,6 +130,17 @@ define( function( require ) {
         self.removeBackgroundPress( self.findBackgroundPress( event.pointer ) );
 
         sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
+      },
+
+      move: function( event ) {
+        if ( self._allowMoveInterruption && !event.defaultPrevented ) {
+          console.log( 'interrupting from background move, converting' );
+          sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener attached, interrupting for press' );
+          event.pointer.interruptAttached();
+          self.convertBackgroundPresses();
+
+          self.movePress( self.findPress( event.pointer ) );
+        }
       },
 
       cancel: function( event ) {
@@ -189,21 +206,29 @@ define( function( require ) {
       var press = new Press( event.pointer, event.trail.subtrailTo( this._targetNode, false ) );
 
       if ( !event.pointer.isAttached() ) {
+        console.log( 'not attached, normal' );
         sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener unattached, using press' );
         this.addPress( press );
         this.convertBackgroundPresses();
       }
       else if ( this._allowMultitouchInterruption ) {
         if ( this._presses.length || this._backgroundPresses.length ) {
+          console.log( 'multi touch interruption' );
           sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener attached, interrupting for press' );
           press.pointer.interruptAttached();
           this.addPress( press );
           this.convertBackgroundPresses();
         }
         else {
-          sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener attached, adding background press' );
+          console.log( 'adding background preses from multitouch' );
+          sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener attached, adding background press from multitouch' );
           this.addBackgroundPress( press );
         }
+      }
+      else if ( this._allowMoveInterruption )  {
+        console.log( 'adding background press from move' );
+        sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener attached, adding background press for move' );
+        this.addBackgroundPress( press );
       }
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();

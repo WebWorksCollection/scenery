@@ -52,6 +52,11 @@ define( require => {
       // @public {DOMEvent|null} - Raw DOM InputEvent (TouchEvent, PointerEvent, MouseEvent,...)
       this.domEvent = domEvent;
 
+      // @private {boolean} - Whether or not certain "default" behavior is meant to be prevented
+      // in response to this event. Aa listener can set this with preventDefaultBehavior, while
+      // other listeners can observe this and react accordingly.
+      this.defaultPrevented = false;
+
       // @public {Node|null} - whatever node you attached the listener to, or null when firing events on a Pointer
       this.currentTarget = null;
 
@@ -85,6 +90,17 @@ define( require => {
     abort() {
       sceneryLog && sceneryLog.InputEvent && sceneryLog.InputEvent( 'aborted event' );
       this.aborted = true;
+    }
+
+    /**
+     * Like event.preventDefault(),  but named differently to indicate that it doesn't fire  thaht behavior on the
+     * underlying DOM event. So this does not prevent any default or browser behavior, but other scenery listeners
+     * may monitor defaultPrevented to determine behavior.
+     * @public
+     */
+    preventDefaultBehavior() {
+      sceneryLog && sceneryLog.InputEvent && sceneryLog.InputEvent( 'default prevented' );
+      this.defaultPrevented = true;
     }
 
     /**

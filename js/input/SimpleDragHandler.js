@@ -138,6 +138,9 @@ define( function( require ) {
 
       if ( !self.dragging || self.isDisposed ) { return; }
 
+      // When initiating a drag, prevent default behavior (such as behavior from MultiListener)
+      event.preventDefaultBehavior();
+
       var globalDelta = self.pointer.point.minus( self.lastDragPoint );
 
       // ignore move events that have 0-length. Chrome seems to be auto-firing these on Windows,
@@ -296,7 +299,7 @@ define( function( require ) {
       },
 
       interrupt: function( event ) {
-        // this needs to be implemented if this listener is to be attached to a Pointer.
+        self.pointer.detach( self.dragListener );
       },
 
       // mouse/touch move
