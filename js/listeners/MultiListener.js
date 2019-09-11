@@ -62,10 +62,12 @@ define( function( require ) {
     this._minScale = options.minScale;
     this._maxScale = options.maxScale;
 
-    // @private {Array.<Press>}
+    // @private {Array.<Press>} - list of Presses down on the screen, the number of pointers currently
+    // touching down on the screen
     this._presses = [];
 
-    // @private {Array.<Press>}
+    // @private {Array.<Press>} - presses down that may have happened while a pointer was already attached - if at
+    // any point the attached pointer is removed all of these presses become active (moved to this._presses)
     this._backgroundPresses = [];
 
     // @private - listener attached to a Pointer when a press (logical down) is received on a Node.
