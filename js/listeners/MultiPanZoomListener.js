@@ -86,7 +86,7 @@ define( require => {
       Display.focusProperty.link( focus => {
         if ( focus ) {
           const node = focus.trail.lastNode();
-          if ( !this.panBounds.intersectsBounds( node.globalBounds ) ) {
+          if ( !this.panBounds.containsBounds( node.globalBounds ) ) {
             this.panToNode( node );
           }
         }
