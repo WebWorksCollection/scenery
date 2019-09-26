@@ -460,20 +460,16 @@ define( function( require ) {
       //   pointerAttached = this.pointer.isAttached();
       // }
       if ( this._listeningToPointer ) {
-        console.log( 'listening to this listener' );
         pointerAttached = false;
       }
       else if ( this.pointer ) {
-        console.log( 'this.pointer attached');
         pointerAttached = this.pointer.isAttached();
       }
       else {
 
         // interrupt before attaching the other listener...
         for ( let i = 0; i < this.overPointers.length; i++ ) {
-          console.log( 'here' );
           if ( this.overPointers.get( i ).isAttached() ) {
-            console.log( 'an over pointer is attached' );
             pointerAttached = true;
             break;
           }

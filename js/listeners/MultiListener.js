@@ -198,8 +198,7 @@ define( function( require ) {
     },
 
     /**
-     * Movement is allowed if the Pointer is not attached to another listener and Pointer
-     * is not allowed for Drag interaction.
+     * Movement is disallowed for pointers with Intent that indicate that dragging is expected.
      * @private
      *
      * @param {Pointer} pointer
@@ -207,7 +206,7 @@ define( function( require ) {
      */
     canMove: function( pointer ) {
       const intent = pointer.getIntent();
-      return !pointer.isAttached() && ( intent !== Pointer.Intent.DRAG && intent !== Pointer.Intent.MULTI_DRAG );
+      return ( intent !== Pointer.Intent.DRAG && intent !== Pointer.Intent.MULTI_DRAG );
     },
 
     /**
@@ -239,7 +238,7 @@ define( function( require ) {
 
       var press = new Press( event.pointer, event.trail.subtrailTo( this._targetNode, false ) );
 
-      if ( this.canMove( event.pointer ) ) {
+      if ( !event.pointer.isAttached() && this.canMove( event.pointer ) ) {
         sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener unattached, using press' );
         this.addPress( press );
         this.convertBackgroundPresses();
