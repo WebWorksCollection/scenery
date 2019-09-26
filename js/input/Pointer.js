@@ -147,9 +147,8 @@ define( function( require ) {
      *
      * @param {Object} listener - See top-level documentation for description of the listener API
      * @param {boolean} [attach]
-     * @param {Intent} [intent] optional - whether or not to assign intent to the pointer when we attach a listener
      */
-    addInputListener: function( listener, attach, intent ) {
+    addInputListener: function( listener, attach ) {
       sceneryLog && sceneryLog.Pointer && sceneryLog.Pointer( 'addInputListener to ' + this.toString() + ' attach:' + attach );
       sceneryLog && sceneryLog.Pointer && sceneryLog.push();
 
@@ -163,7 +162,7 @@ define( function( require ) {
       this._listeners.push( listener );
 
       if ( attach ) {
-        this.attach( listener, intent );
+        this.attach( listener );
       }
 
       sceneryLog && sceneryLog.Pointer && sceneryLog.pop();
@@ -259,19 +258,14 @@ define( function( require ) {
      * @private
      *
      * @param {Object} listener
-     * @param {Intent} [intent]
      */
-    attach: function( listener, intent ) {
+    attach: function( listener ) {
       sceneryLog && sceneryLog.Pointer && sceneryLog.Pointer( 'Attaching to ' + this.toString() );
 
       assert && assert( !this.isAttached(), 'Attempted to attach to an already attached pointer' );
 
       this.attachedProperty.value = true;
       this._attachedListener = listener;
-
-      if ( intent !== undefined ) {
-        this.setIntent( intent );
-      }
     },
 
     /**
@@ -306,8 +300,9 @@ define( function( require ) {
     },
 
     /**
-     * Sets the intent on the Pointer during listener attachment.
-     * @private
+     * Sets the intent on the Pointer. By setting intent other listeners in in the dispatch phase
+     * can react accordingly. The Intent can be changed by listeners up the dispatch or on the next press.
+     * @public
      *
      * @param {Intent} intent
      */

@@ -56,6 +56,10 @@ define( function( require ) {
       // a drag via something like PressListener
       attach: false,
 
+      // {null|Pointer.Intent} - set to define behavior for the pointer of the drag to change behavior of
+      // other listeners up the dispatch phase
+      intent: Pointer.Intent.DRAG,
+
       // phetio
       tandem: Tandem.required,
       phetioState: false,
@@ -103,10 +107,11 @@ define( function( require ) {
       // set a flag on the pointer so it won't pick up other nodes
       event.pointer.dragging = true;
       event.pointer.cursor = self.options.dragCursor;
+      event.pointer.addInputListener( self.dragListener, self.options.attach );
 
       // mark the intent of this pointer to indicate that we want to drag and therefore block any other listeners
       // closer to the root or Display from certain behaviors
-      event.pointer.addInputListener( self.dragListener, self.options.attach, Pointer.Intent.DRAG );
+      event.pointer.setIntent( self.options.intent );
 
       // set all of our persistent information
       self.isDraggingProperty.set( true );
@@ -204,6 +209,7 @@ define( function( require ) {
       self.pointer.dragging = false;
       self.pointer.cursor = null;
       self.pointer.removeInputListener( self.dragListener );
+      self.pointer.setIntent( null );
 
       self.isDraggingProperty.set( false );
 

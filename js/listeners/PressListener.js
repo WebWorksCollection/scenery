@@ -27,7 +27,6 @@ define( function( require ) {
   var NullableIO = require( 'TANDEM/types/NullableIO' );
   var ObservableArray = require( 'AXON/ObservableArray' );
   var PhetioObject = require( 'TANDEM/PhetioObject' );
-  var Pointer = require( 'SCENERY/input/Pointer' );
   var scenery = require( 'SCENERY/scenery' );
   var Tandem = require( 'TANDEM/Tandem' );
   var timer = require( 'AXON/timer' );
@@ -168,6 +167,9 @@ define( function( require ) {
 
     // @private {boolean}
     this._attach = options.attach;
+
+    // @private {Pointer.Intent}
+    this._intent = options.intent;
 
     // @public {ObservableArray.<Pointer>} - Contains all pointers that are over our button. Tracked by adding with
     // 'enter' events and removing with 'exit' events.
@@ -522,8 +524,10 @@ define( function( require ) {
 
       this.interrupted = false; // clears the flag (don't set to false before here)
 
-      this.pointer.addInputListener( this._pointerListener, this._attach, this._intent );
+      this.pointer.addInputListener( this._pointerListener, this._attach );
       this._listeningToPointer = true;
+
+      this.pointer.setIntent( this._intent );
 
       this.pointer.cursor = this._pressCursor;
 
@@ -549,6 +553,7 @@ define( function( require ) {
       this._listeningToPointer = false;
 
       this.pointer.cursor = null;
+      this.pointer.setIntent( null );
 
       // Unset this properties after the property change, so they are visible to listeners beforehand.
       this.pointer = null;

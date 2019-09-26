@@ -136,10 +136,7 @@ define( function( require ) {
       },
 
       move: function( event ) {
-
-        // any Pointers that intend to drag something indicate that translation should be disabled
-        const pointerIntent = event.pointer.getIntent();
-        if ( self._allowMoveInterruption && pointerIntent !== Pointer.Intent.DRAG ) {
+        if ( self._allowMoveInterruption && self.canMove( event.pointer ) ) {
 
           const backgroundPress = self.findBackgroundPress( event.pointer );
           const difference = backgroundPress.initialPoint.minus( event.pointer.point );
@@ -200,6 +197,31 @@ define( function( require ) {
       return null;
     },
 
+    /**
+     * Movement is allowed if the Pointer is not attached to another listener and Pointer
+     * is not allowed for Drag interaction.
+     * @private
+     *
+     * @param {Pointer} pointer
+     * @returns {boolean}
+     */
+    canMove: function( pointer ) {
+      const intent = pointer.getIntent();
+      return !pointer.isAttached() && ( intent !== Pointer.Intent.DRAG && intent !== Pointer.Intent.MULTI_DRAG );
+    },
+
+    /**
+     * Returns true if scaling input is allowed. Pointer must not be attached. Then consult the intent of the Pointer
+     * to determine if multiple drags are expected which should disable scaling presses.
+     *
+     * @param {Pointer} pointer
+     * @returns {boolean}
+     */
+    canScale: function( pointer ) {
+      const intent = pointer.getIntent();
+      return !pointer.isAttached() && intent !== Pointer.Intent.MULTI_DRAG;
+    },
+
     // TODO: see PressListener
     down: function( event ) {
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener down' );
@@ -217,12 +239,12 @@ define( function( require ) {
 
       var press = new Press( event.pointer, event.trail.subtrailTo( this._targetNode, false ) );
 
-      if ( !event.pointer.isAttached() ) {
+      if ( this.canMove( event.pointer ) ) {
         sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener unattached, using press' );
         this.addPress( press );
         this.convertBackgroundPresses();
       }
-      else if ( this._allowMultitouchInterruption ) {
+      else if ( this._allowMultitouchInterruption && this.canScale( event.pointer ) ) {
         if ( this._presses.length || this._backgroundPresses.length ) {
           sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener attached, interrupting for press' );
           press.pointer.interruptAttached();
