@@ -27,6 +27,7 @@ define( function( require ) {
   var NullableIO = require( 'TANDEM/types/NullableIO' );
   var ObservableArray = require( 'AXON/ObservableArray' );
   var PhetioObject = require( 'TANDEM/PhetioObject' );
+  var Pointer = require( 'SCENERY/input/Pointer' );
   var scenery = require( 'SCENERY/scenery' );
   var Tandem = require( 'TANDEM/Tandem' );
   var timer = require( 'AXON/timer' );
@@ -107,6 +108,10 @@ define( function( require ) {
       // will mark itself as attached to the pointer. If this listener should not be interrupted by others and isn't
       // a "primary" handler of the pointer's behavior, this should be set to false.
       attach: true,
+
+      // {null|Pointer.Intent} - Indicate the intent of the Pointer that gets attached by this PressListener. Indicating
+      // intent will allow other listeners to behave accordingly during the rest of the event dispatch phase.
+      intent: null,
 
       // {function} - Checks this when trying to start a press. If this function returns false, a press will not be
       // started. Called as canStartPress( event: {Event|null}, listener: {PressListener} ), since sometimes the
@@ -438,6 +443,8 @@ define( function( require ) {
         this.release();
       }
 
+      this.invalidateOver();
+
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
     },
 
@@ -446,7 +453,31 @@ define( function( require ) {
      * @private
      */
     invalidateOver: function() {
-      this.isOverProperty.value = this.isFocusedProperty.value || this.overPointers.length > 0;
+      let pointerAttached = false;
+      // if ( this.pointer ) {
+      //   pointerAttached = this.pointer.isAttached();
+      // }
+      if ( this._listeningToPointer ) {
+        console.log( 'listening to this listener' );
+        pointerAttached = false;
+      }
+      else if ( this.pointer ) {
+        console.log( 'this.pointer attached');
+        pointerAttached = this.pointer.isAttached();
+      }
+      else {
+
+        // interrupt before attaching the other listener...
+        for ( let i = 0; i < this.overPointers.length; i++ ) {
+          console.log( 'here' );
+          if ( this.overPointers.get( i ).isAttached() ) {
+            console.log( 'an over pointer is attached' );
+            pointerAttached = true;
+            break;
+          }
+        }
+      }
+      this.isOverProperty.value = this.isFocusedProperty.value || ( this.overPointers.length > 0 && !pointerAttached );
     },
 
     /**
@@ -491,7 +522,7 @@ define( function( require ) {
 
       this.interrupted = false; // clears the flag (don't set to false before here)
 
-      this.pointer.addInputListener( this._pointerListener, this._attach );
+      this.pointer.addInputListener( this._pointerListener, this._attach, this._intent );
       this._listeningToPointer = true;
 
       this.pointer.cursor = this._pressCursor;
@@ -563,6 +594,19 @@ define( function( require ) {
       this.overPointers.push( event.pointer );
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
+    },
+
+    /**
+     * Called with 'move' events (part of the listener API). It is necessary to check for `over` state
+     * changes on move in case a Pointer resumes movement over a target after interruption.
+     * @public (scenery-internal)
+     *
+     * NOTE: Do not call directly.
+     *
+     * @param {Event} event
+     */
+    move: function( event ) {
+      this.invalidateOver();
     },
 
     /**
@@ -650,7 +694,6 @@ define( function( require ) {
       // See https://github.com/phetsims/capacitor-lab-basics/issues/251
       if ( this.isPressed ) {
         assert && assert( event.pointer === this.pointer );
-
         this.drag( event );
       }
 

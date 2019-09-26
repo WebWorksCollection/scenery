@@ -29,6 +29,11 @@ define( function( require ) {
   var inherit = require( 'PHET_CORE/inherit' );
   var scenery = require( 'SCENERY/scenery' );
   var Vector2 = require( 'DOT/Vector2' );
+  const Enumeration = require( 'PHET_CORE/Enumeration' );
+
+  // constants
+  // A Pointer can be assigned an Intent to signify (or prevent) certain behaviors
+  const Intent = new Enumeration( [ 'DRAG', 'MULTI_DRAG' ] );
 
   /**
    * @constructor
@@ -82,6 +87,11 @@ define( function( require ) {
     // @public (scenery-internal) {DOMEvent|null} - Recorded and exposed so that it can be provided to events when there
     // is no "immediate" DOM event (e.g. when a node moves UNDER a pointer and triggers a touch-snag).
     this.lastDOMEvent = null;
+
+    // @private {Intent} - A pointer can be assigned an Intent when a listener is attached to initiate or prevent
+    // certain behavior for the life of the listener. Other listeners can observe the Intent on the Pointer and react
+    // accordingly.
+    this._intent = null;
   }
 
   scenery.register( 'Pointer', Pointer );
@@ -137,8 +147,9 @@ define( function( require ) {
      *
      * @param {Object} listener - See top-level documentation for description of the listener API
      * @param {boolean} [attach]
+     * @param {Intent} [intent] optional - whether or not to assign intent to the pointer when we attach a listener
      */
-    addInputListener: function( listener, attach ) {
+    addInputListener: function( listener, attach, intent ) {
       sceneryLog && sceneryLog.Pointer && sceneryLog.Pointer( 'addInputListener to ' + this.toString() + ' attach:' + attach );
       sceneryLog && sceneryLog.Pointer && sceneryLog.push();
 
@@ -152,7 +163,7 @@ define( function( require ) {
       this._listeners.push( listener );
 
       if ( attach ) {
-        this.attach( listener );
+        this.attach( listener, intent );
       }
 
       sceneryLog && sceneryLog.Pointer && sceneryLog.pop();
@@ -248,14 +259,19 @@ define( function( require ) {
      * @private
      *
      * @param {Object} listener
+     * @param {Intent} [intent]
      */
-    attach: function( listener ) {
+    attach: function( listener, intent ) {
       sceneryLog && sceneryLog.Pointer && sceneryLog.Pointer( 'Attaching to ' + this.toString() );
 
       assert && assert( !this.isAttached(), 'Attempted to attach to an already attached pointer' );
 
       this.attachedProperty.value = true;
       this._attachedListener = listener;
+
+      if ( intent !== undefined ) {
+        this.setIntent( intent );
+      }
     },
 
     /**
@@ -269,6 +285,10 @@ define( function( require ) {
 
       assert && assert( this.isAttached(), 'Cannot detach a listener if one is not attached' );
       assert && assert( this._attachedListener === listener, 'Cannot detach a different listener' );
+
+      if ( this._intent ) {
+        this.setIntent( null );
+      }
 
       this.attachedProperty.value = false;
       this._attachedListener = null;
@@ -286,6 +306,21 @@ define( function( require ) {
     },
 
     /**
+     * Sets the intent on the Pointer during listener attachment.
+     * @private
+     *
+     * @param {Intent} intent
+     */
+    setIntent( intent ) {
+      assert && assert( intent === null || Intent.includes( intent ), 'unsuported intent for Pointer' );
+      this._intent = intent;
+    },
+
+    getIntent() {
+      return this._intent;
+    },
+
+    /**
      * Releases references so it can be garbage collected.
      * @public
      */
@@ -295,6 +330,9 @@ define( function( require ) {
       assert && assert( this._attachedListener === null, 'Attached listeners should be cleared before pointer disposal' );
       assert && assert( this._listeners.length === 0, 'Should not have listeners when a pointer is disposed' );
     }
+  }, {
+
+    Intent: Intent
   } );
 
   return Pointer;

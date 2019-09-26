@@ -48,6 +48,7 @@ define( function( require ) {
   var PhetioObject = require( 'TANDEM/PhetioObject' );
   var PressListener = require( 'SCENERY/listeners/PressListener' );
   var Property = require( 'AXON/Property' );
+  var Pointer = require( 'SCENERY/input/Pointer' );
   var scenery = require( 'SCENERY/scenery' );
   var Tandem = require( 'TANDEM/Tandem' );
   var Touch = require( 'SCENERY/input/Touch' );
@@ -140,6 +141,9 @@ define( function( require ) {
       !( options.mapLocation && options.dragBoundsProperty ),
       'Only one of mapLocation and dragBoundsProperty can be provided, as they handle mapping of the drag point'
     );
+
+    assert && assert( options.pointer === undefined, 'DragListener sets intent for PressListener' );
+    options.intent = Pointer.Intent.DRAG;
 
     PressListener.call( this, options );
 

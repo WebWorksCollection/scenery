@@ -21,6 +21,7 @@ define( function( require ) {
   var Tandem = require( 'TANDEM/Tandem' );
   var Touch = require( 'SCENERY/input/Touch' );
   var Vector2 = require( 'DOT/Vector2' );
+  const Pointer = require( 'SCENERY/input/Pointer' );
   var Vector2IO = require( 'DOT/Vector2IO' );
   var VoidIO = require( 'TANDEM/types/VoidIO' );
 
@@ -102,7 +103,10 @@ define( function( require ) {
       // set a flag on the pointer so it won't pick up other nodes
       event.pointer.dragging = true;
       event.pointer.cursor = self.options.dragCursor;
-      event.pointer.addInputListener( self.dragListener, self.options.attach );
+
+      // mark the intent of this pointer to indicate that we want to drag and therefore block any other listeners
+      // closer to the root or Display from certain behaviors
+      event.pointer.addInputListener( self.dragListener, self.options.attach, Pointer.Intent.DRAG );
 
       // set all of our persistent information
       self.isDraggingProperty.set( true );
@@ -137,9 +141,6 @@ define( function( require ) {
     this.draggedAction = new Action( function( point, event ) {
 
       if ( !self.dragging || self.isDisposed ) { return; }
-
-      // When initiating a drag, prevent default behavior (such as behavior from MultiListener)
-      event.preventDefaultBehavior();
 
       var globalDelta = self.pointer.point.minus( self.lastDragPoint );
 
