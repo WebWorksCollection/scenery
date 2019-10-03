@@ -39,7 +39,6 @@ define( function( require ) {
     var self = this;
 
     options = _.extend( {
-      mouseButton: 0, // TODO: see PressListener
       pressCursor: 'pointer', // TODO: see PressListener
       targetNode: null, // TODO: required? pass in at front
       allowScale: true,
@@ -225,9 +224,9 @@ define( function( require ) {
     down: function( event ) {
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener down' );
 
-      if ( event.pointer instanceof Mouse && event.domEvent.button !== this._mouseButton ) {
+      // Press gets added as long as it is not from a right mouse button
+      if ( event.pointer instanceof Mouse && event.domEvent.button > 1 ) {
         sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener abort: wrong mouse button' );
-
         return;
       }
 

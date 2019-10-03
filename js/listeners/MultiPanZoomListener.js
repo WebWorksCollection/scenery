@@ -23,6 +23,11 @@ define( require => {
   const PanZoomListener = require( 'SCENERY/listeners/PanZoomListener' );
   const platform = require( 'PHET_CORE/platform' );
 
+  // constants
+  const MOVE_CURSOR = 'all-scroll';
+  const MAX_SCROLL_VELOCITY = 300; // max global view coords per second while scrolling with middle mouse button drag
+
+  // scratch variables to reduce garbage
   const scratchTranslationVector = new Vector2( 0, 0 );
   const scratchScaleTargetVector = new Vector2( 0, 0 );
   const scratchVelocityVector = new Vector2( 0, 0 );
@@ -60,6 +65,10 @@ define( require => {
       // @private {Array.<number>} - scale changes in discrete amounts for certain types of input, and in these
       // cases this array defines the discrete scales possible
       this.discreteScales = calculateDiscreteScales( this._minScale, this._maxScale );
+
+      // @private {MiddlePress|null} - If defined, indicates that a middle mouse button is down to pan in the direction
+      // of cursor movement.
+      this.middlePress = null;
 
       // handle keyboard input - we may want to respond to this input when focus is outside of the PDOM so we
       // respond to a KeyStateTracker, which the client may update anywhere (like in response to events on the
@@ -100,7 +109,53 @@ define( require => {
      * @param {number} dt
      */
     step( dt ) {
+      if ( this.middlePress ) {
+        this.handleMiddlePress( dt );
+      }
+
       this.animateToTargets( dt );
+    }
+
+    /**
+     * Attach a MiddlePress for drag panning if detected.
+     * @override
+     *
+     * @param {Event} event
+     */
+    down( event ) {
+      PanZoomListener.prototype.down.call( this, event );
+
+      if ( event.pointer.type === 'mouse' ) {
+        if ( event.pointer.middleDown ) {
+          this.middlePress = new MiddlePress( event.pointer, event.trail );
+          event.pointer.cursor = MOVE_CURSOR;
+        }
+      }
+    }
+
+    /**
+     * Listener for the attached pointer on move. Only move if a middle press is not currently down.
+     * @override
+     *
+     * @param {Event} event
+     */
+    movePress( event ) {
+      if ( !this.middlePress ) {
+        PanZoomListener.prototype.movePress.call( this, event );
+      }
+    }
+
+    /**
+     * Scenery listener API. Clear cursor and middlePress.
+     *
+     * @param {Event} event
+     * @returns {}
+     */
+    up( event ) {
+      if ( event.pointer.type === 'mouse' ) {
+        event.pointer.cursor = null;
+        this.middlePress = null;
+      }
     }
 
     /**
@@ -214,6 +269,28 @@ define( require => {
 
       const newScale = this.sourceScale + domEvent.scale - this.trackpadGestureStartScale;
       this.setDestinationScale( newScale );
+    }
+
+    /**
+     * Handle the down MiddlePress during animation. If we have a middle press we need to update location target.
+     * @private
+     *
+     * @param {number} dt
+     */
+    handleMiddlePress( dt ) {
+      assert && assert( this.middlePress, 'MiddlePress must be defined to handle' );
+
+      const currentPoint = this.middlePress.pointer.point;
+      const globalDelta = currentPoint.minus( this.middlePress.initialPoint );
+
+      // magnitude alone is too fast, reduce by a bit
+      const reducedMagnitude = globalDelta.magnitude / 100;
+      if ( dt > 0 && reducedMagnitude > 0 ) {
+
+        // set the delta vector in global coordinates, limited by a maximum view coords/second velocity
+        globalDelta.setMagnitude( Math.min( reducedMagnitude / dt, MAX_SCROLL_VELOCITY ) );
+        this.setDestinationLocation( this.sourceLocation.plus( globalDelta ) );
+      }
     }
 
     /**
@@ -357,8 +434,8 @@ define( require => {
       const locationDirty = !this.destinationLocation.equalsEpsilon( this.sourceLocation, 0.1 );
       const scaleDirty = !Util.equalsEpsilon( this.sourceScale, this.destinationScale, 0.001 );
 
-      // don't animate to targets as long as presses are down
-      if ( this._presses.length === 0 ) {
+      // Only a MiddlePress can support animation while down
+      if ( this._presses.length === 0 || this.middlePress !== null ) {
         if ( locationDirty ) {
 
           // animate to the location, effectively panning over time without any scaling
@@ -638,6 +715,28 @@ define( require => {
       // in different cases like mouse wheel and trackpad input, both which trigger wheel events but at different
       // rates with different delta values
       this.translationVector = scratchTranslationVector.setXY( event.domEvent.deltaX, event.domEvent.deltaY );
+    }
+  }
+
+  /**
+   * A press from a middle mouse button. Will initiate panning and destination location will be updated for as long
+   * as the Pointer point is dragged away from the initial point.
+   */
+  class MiddlePress {
+
+    /**
+     * @param {Mouse} pointer
+     * @param {Trail} trail
+     */
+    constructor( pointer, trail ) {
+      assert && assert( pointer.type === 'mouse', 'incorrect pointer type' );
+
+      // @private
+      this.pointer = pointer;
+      this.trail = trail;
+
+      // point of press in the global coordinate frame
+      this.initialPoint = pointer.point.copy();
     }
   }
 
