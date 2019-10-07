@@ -721,10 +721,21 @@ define( require => {
       // @public (read-only) - the target of the wheel input in the global coordinate frame
       this.targetPoint = event.pointer.point;
 
-      // @public (read-only) - the DOMEvent specifies a translation delta that looks appropriate and works well
-      // in different cases like mouse wheel and trackpad input, both which trigger wheel events but at different
-      // rates with different delta values
-      this.translationVector = scratchTranslationVector.setXY( event.domEvent.deltaX, event.domEvent.deltaY );
+      // the DOMEvent specifies deltas that look appropriate and works well in different cases like
+      // mouse wheel and trackpad input, both which trigger wheel events but at different rates with different
+      // delta values
+      let translationX = domEvent.deltaX;
+      let translationY = domEvent.deltaY;
+
+      // FireFox defaults to scrolling in units of "lines" rather than pixels, resulting in slow movement - speed up
+      // translation in this case
+      if ( domEvent.deltaMode === window.WheelEvent.DOM_DELTA_LINE ) {
+        translationX = translationX * 25;
+        translationY = translationY * 25;
+      }
+
+      // @public (read-only)
+      this.translationVector = scratchTranslationVector.setXY( translationX, translationY );
     }
   }
 
