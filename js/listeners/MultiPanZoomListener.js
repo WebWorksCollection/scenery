@@ -451,16 +451,26 @@ define( require => {
           scratchVelocityVector.setXY( translationSpeed, translationSpeed );
 
           // finally determine the final panning translation and apply
-          const translationMagnitude = scratchVelocityVector.multiplyScalar( dt );
-          const translationDelta = translationDirection.componentTimes( translationMagnitude );
+          const componentMagnitude = scratchVelocityVector.multiplyScalar( dt );
+          const translationDelta = translationDirection.componentTimes( componentMagnitude );
+
+          // in case of large dt, don't overshoot the destination
+          if ( translationDelta.magnitude > translationDifference.magnitude ) {
+            translationDelta.set( translationDifference );
+          }
 
           this.translateDelta( translationDelta );
         }
         if ( scaleDirty ) {
           assert && assert( this.scaleGestureTargetLocation, 'there must be a scale target point' );
 
-          const scaleDifference = ( this.destinationScale - this.sourceScale );
-          const scaleDelta = scaleDifference * dt * 6;
+          const scaleDifference = this.destinationScale - this.sourceScale;
+          let scaleDelta = scaleDifference * dt * 6;
+
+          // in case of large dt make sure that we don't overshoot our destination
+          if ( Math.abs( scaleDelta ) > Math.abs( scaleDifference ) ) {
+            scaleDelta = scaleDifference;
+          }
           this.translateScaleToTarget( this.scaleGestureTargetLocation, scaleDelta );
 
           // after applying the scale, the source position has changed, update destination to match
