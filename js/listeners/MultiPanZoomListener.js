@@ -182,7 +182,8 @@ define( require => {
      * @param {DOMEvent} domEvent
      */
     globalKeydown( domEvent ) {
-      if ( !phet.joist.sim.display.accessibleDOMElement.contains( domEvent.target ) ) {
+      const displayAccessible = phet.joist.sim.display._accessible;
+      if ( !displayAccessible || !phet.joist.sim.display.accessibleDOMElement.contains( domEvent.target ) ) {
         this.handleZoomCommands( domEvent );
 
         // handle translation without worry of the pointer being attached because there is no pointer at this level
