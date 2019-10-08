@@ -71,11 +71,6 @@ define( require => {
       // of cursor movement.
       this.middlePress = null;
 
-      // handle keyboard input - we may want to respond to this input when focus is outside of the PDOM so we
-      // respond to a KeyStateTracker, which the client may update anywhere (like in response to events on the
-      // document body)
-      // keyStateTracker.keydownEmitter.addListener( this.handleKeyEvent.bind( this ) );
-
       // respond to macOS trackpad input
       if ( platform.safari && !platform.mobileSafari ) {
 
@@ -90,6 +85,10 @@ define( require => {
         window.addEventListener( 'gesturestart', this.handleGestureStartEvent.bind( this ) );
         window.addEventListener( 'gesturechange', this.handleGestureChangeEvent.bind( this ) );
       }
+
+      // Handle key input from events outside of the PDOM - in this case there is no A11yPointer to be attached so
+      // we have free reign over the keyboard
+      this.keyStateTracker.keydownEmitter.addListener( this.globalKeydown.bind( this ) );
 
       // TODO: move this out of this listener, maybe into Sim.js - PanZoomListener shouldn't care about
       // Display focus
@@ -174,9 +173,66 @@ define( require => {
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
     }
 
-    keydown( event ) {
+    /**
+     * Keydown listener for events outside of the PDOM. Attached as a listener to the KeyStateTracker and driven by
+     * DOMEvents rather than scenery Events. When we handle Events from within the PDOM we need the Pointer to
+     * determine if attached. But from outside of the PDOM we know that there is no focus in the document.
+     * @private
+     *
+     * @param {DOMEvent} domEvent
+     */
+    globalKeydown( domEvent ) {
+      if ( !phet.joist.sim.display.accessibleDOMElement.contains( domEvent.target ) ) {
+        this.handleZoomCommands( domEvent );
 
+        // handle translation without worry of the pointer being attached because there is no pointer at this level
+        if ( KeyboardUtil.isArrowKey( domEvent.keyCode ) ) {
+          const keyPress = new KeyPress( this.keyStateTracker, this.getCurrentScale() );
+          this.repositionFromKeys( keyPress );
+        }
+
+      }
+    }
+
+    /**
+     * For the Scenery listener API, handle a keydown event. This Event will have been dispatched from
+     * Input.dispatchEvent and so the DOMEvent target must be within the PDOM. In this case, we may
+     * need to prevent translation if the A11yPointer is attached or the Pointer indicates that it
+     * is intended to for arrow key control.
+     * @public (scenery-internal)
+     *
+     * @param {Event} event
+     */
+    keydown( event ) {
       const domEvent = event.domEvent;
+
+      // handle zoom
+      this.handleZoomCommands( domEvent );
+
+      // handle translation
+      if ( KeyboardUtil.isArrowKey( domEvent.keyCode ) ) {
+        const keyboardDragIntent = event.pointer.getIntent() === Pointer.Intent.KEYBOARD_DRAG;
+        const elementUsesKeys = AccessibilityUtil.elementUsesArrowKeys( domEvent.target );
+
+        if ( !keyboardDragIntent && !elementUsesKeys ) {
+          sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener handle arrow key down' );
+          sceneryLog && sceneryLog.InputListener && sceneryLog.push();
+
+          const keyPress = new KeyPress( this.keyStateTracker, this.getCurrentScale() );
+          this.repositionFromKeys( keyPress );
+
+          sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
+        }
+      }
+    }
+
+    /**
+     * Handle zoom commands from a keyboard.
+     * @private
+     *
+     * @param {DOMEvent} domEvent
+     */
+    handleZoomCommands( domEvent ) {
 
       // handle zoom - Safari doesn't receive the keyup event when the meta key is pressed so we cannot use
       // the keyStateTracker to determine if zoom keys are down
@@ -207,41 +263,7 @@ define( require => {
 
         sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
       }
-
-      // handle translation
-      if ( KeyboardUtil.isArrowKey( domEvent.keyCode ) ) {
-
-        // for now, we just disable panning with a keyboard if the element uses arrow keys for interaction or
-        // the node as ANY keydown/keyup listeners
-        const displayFocus = Display.focusProperty.get();
-        let keyboardDragIntent = false;
-        let elementUsesKeys = false;
-
-        if ( displayFocus ) {
-
-          // NOTE: this function takes up extra time searching for listeners along the trail - instead of doing this
-          // every keydown event, consider updating this flag only when focus changes
-          keyboardDragIntent = event.pointer.getIntent() === Pointer.Intent.KEYBOARD_DRAG;
-          elementUsesKeys = AccessibilityUtil.elementUsesArrowKeys( domEvent.target );
-        }
-
-        if ( displayFocus === null || ( !keyboardDragIntent && !elementUsesKeys ) ) {
-          sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener handle arrow key down' );
-          sceneryLog && sceneryLog.InputListener && sceneryLog.push();
-
-          const keyPress = new KeyPress( this.keyStateTracker, this.getCurrentScale() );
-          this.repositionFromKeys( keyPress );
-
-          sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
-        }
-      }
     }
-
-    /**
-     * Respond to a key event, scaling or zooming into a point depending on the command.
-     * @param {DOMEvent} domEvent
-     */
-    handleKeyEvent( event ) {}
 
     /**
      * This is just for macOS Safari. Responds to trackpad input. Prevents default browser behavior and sets values

@@ -1844,6 +1844,7 @@ define( function( require ) {
   // @public (read-only) {KeyStateTracker} - A global object that tracks the state of the keyboard for all Displays. Use this
   // to get information about which keyboard keys are pressed down and for how long.
   Display.keyStateTracker = new KeyStateTracker();
+  Display.keyStateTracker.attachToBody();
 
   /**
    * Returns true when NO nodes in the subtree are disposed.

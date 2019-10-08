@@ -64,11 +64,8 @@ define( require => {
 
           // set the target to potentially block keyup events
           this.keydownTargetNode = event.target;
-
-          scenery.Display.keyStateTracker.keydownUpdate( event );
         },
         keyup: ( event ) => {
-          scenery.Display.keyStateTracker.keyupUpdate( event );
 
           // The keyup event was received on a node that didn't receive a keydown event, abort to prevent any other
           // listeners from being called for this event. Done after updating KeyStateTracker so that the global state

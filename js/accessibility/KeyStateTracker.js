@@ -15,7 +15,6 @@ define( require => {
   const Emitter = require( 'AXON/Emitter' );
   const KeyboardUtil = require( 'SCENERY/accessibility/KeyboardUtil' );
   const scenery = require( 'SCENERY/scenery' );
-  const Event = require( 'SCENERY/input/Event' );
   const timer = require( 'AXON/timer' );
 
   class KeyStateTracker {
@@ -63,10 +62,9 @@ define( require => {
      * prototype methods. Please see https://github.com/phetsims/scenery/issues/851 for more information.
      * @public
      *
-     * @param {Event} event
+     * @param {DOMEvent} event
      */
-    keydownUpdate( event ) {
-      const domEvent = event.domEvent;
+    keydownUpdate( domEvent ) {
 
       // The dom event might have a modifier key that we weren't able to catch, if that is the case update the keystate.
       // This is likely to happen when pressing browser key commands like "ctrl + tab" to switch tabs.
@@ -150,11 +148,11 @@ define( require => {
      * @public
      * @param {Event} event
      */
-    keyupUpdate( event ) {
-      const keyCode = event.domEvent.keyCode;
+    keyupUpdate( domEvent ) {
+      const keyCode = domEvent.keyCode;
 
       // correct keystate in case browser didn't receive keydown/keyup events for a modifier key
-      this.correctModifierKeys( event.domEvent );
+      this.correctModifierKeys( domEvent );
 
       // Remove this key data from the state - There are many cases where we might receive a keyup before keydown like
       // on first tab into scenery Display or when using specific operating system keys with the browser or PrtScn so
@@ -338,8 +336,9 @@ define( require => {
         scenery.Display.keyStateTracker.keyupUpdate( event );
       };
 
-      document.body.addEventListener( 'keydown', this.bodyKeydownListener );
-      document.body.addEventListener( 'keyup', this.bodyKeyupListener );
+      // attach with useCapture so that the keyStateTracker is up to date before the events dispatch within Scenery
+      document.body.addEventListener( 'keydown', this.bodyKeydownListener, true );
+      document.body.addEventListener( 'keyup', this.bodyKeyupListener, true );
 
       this.attachedToBody = true;
     }
