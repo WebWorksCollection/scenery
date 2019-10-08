@@ -71,6 +71,8 @@ define( require => {
       // of cursor movement.
       this.middlePress = null;
 
+      this.dragBounds = null;
+
       // respond to macOS trackpad input
       if ( platform.safari && !platform.mobileSafari ) {
 
@@ -125,6 +127,9 @@ define( require => {
     down( event ) {
       PanZoomListener.prototype.down.call( this, event );
 
+      this._downTarget = event.target;
+      this._targetInBoundsOnDown = this.panBounds.containsBounds( this._downTarget.globalBounds );
+
       if ( event.pointer.type === 'mouse' ) {
         if ( event.pointer.middleDown ) {
           this.middlePress = new MiddlePress( event.pointer, event.trail );
@@ -145,6 +150,24 @@ define( require => {
       }
     }
 
+    move( event ) {
+      if ( this.hasDragIntent( event.pointer ) && event.currentTarget !== null ) {
+        if ( this._targetInBoundsOnDown ) {
+          if ( !this.panBounds.containsBounds( this._downTarget.globalBounds ) ) {
+
+            // TODO: implement this
+            // this.repositionFromDrag();
+          }
+        }
+        else {
+
+          // target was out of bounds and user may be dragging it in
+          this._targetInBoundsOnDown = this.panBounds.containsBounds( this._downTarget.globalBounds );
+        }
+
+      }
+    }
+
     /**
      * Scenery listener API. Clear cursor and middlePress.
      *
@@ -156,6 +179,9 @@ define( require => {
         event.pointer.cursor = null;
         this.middlePress = null;
       }
+
+      this._targetInBoundsOnDown = false;
+      this._downTarget = null;
     }
 
     /**
@@ -416,6 +442,12 @@ define( require => {
       }
     }
 
+    hasDragIntent( pointer ) {
+      return pointer.getIntent() === Pointer.Intent.KEYBOARD_DRAG ||
+             pointer.getIntent() === Pointer.Intent.DRAG ||
+             pointer.getIntent() === Pointer.Intent.MULTI_DRAG;
+    }
+
     /**
      * Pan to a provided Node, attempting to place the node in the center of the transformedPanBounds. It may not end
      * up exactly in the center since we have to make sure panBounds are completely filled with targetNode content.
@@ -535,6 +567,8 @@ define( require => {
     setPanBounds( bounds ) {
       super.setPanBounds( bounds );
       this.initializeLocations();
+
+      this.dragBounds = bounds.eroded( 25 );
     }
 
     /**
