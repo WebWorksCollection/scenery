@@ -22,6 +22,7 @@ define( function( require ) {
   var inherit = require( 'PHET_CORE/inherit' );
   var KeyboardUtil = require( 'SCENERY/accessibility/KeyboardUtil' );
   var platform = require( 'PHET_CORE/platform' );
+  var Pointer = require( 'SCENERY/input/Pointer' );
   var scenery = require( 'SCENERY/scenery' );
   var timer = require( 'AXON/timer' );
   var Vector2 = require( 'DOT/Vector2' );
@@ -135,6 +136,16 @@ define( function( require ) {
     // step the drag listener, must be removed in dispose
     var stepListener = this.step.bind( this );
     timer.addListener( stepListener );
+
+    // @private {null|A11yPointer} - Reference to the Pointer so that we can detach it on interrupt.
+    this._pointer = null;
+
+    // @private {Object} - This listener gets attached to the A11yPointer so that more global behavior can be blocked during
+    // dragging
+    this._pointerListener = {
+      keydown: this.handleKeydown.bind( this ),
+      keyup: this.handleKeyup.bind( this )
+    };
 
     // @private - called in dispose
     this._disposeKeyboardDragListener = function() {
@@ -311,6 +322,19 @@ define( function( require ) {
      * @param {Event} event
      */
     keydown: function( event ) {
+
+      // indicate the intent of the event response to change behavior of more global listeners
+      if ( !this.movementKeysDown && KeyboardDragListener.isMovementKey( event.domEvent.keyCode ) ) {
+        this._pointer = event.pointer;
+        this._pointer.setIntent( Pointer.Intent.KEYBOARD_DRAG );
+        this._pointer.addInputListener( this._pointerListener );
+
+        // after attaching the pointer for subsequent keydowns, handle the first keydown event
+        this.handleKeydown( event );
+      }
+    },
+
+    handleKeydown: function( event ) {
       var domEvent = event.domEvent;
 
       // required to work with Safari and VoiceOver, otherwise arrow keys will move virtual cursor, see https://github.com/phetsims/balloons-and-static-electricity/issues/205#issuecomment-263428003
@@ -366,9 +390,8 @@ define( function( require ) {
      * @public
      * @param {Event} event
      */
-    keyup: function( event ) {
+    handleKeyup: function( event ) {
       var domEvent = event.domEvent;
-
       var moveKeysDown = this.movementKeysDown;
 
       // if the shift key is down when we navigate to the object, add it to the keystate because it won't be added until
@@ -409,9 +432,25 @@ define( function( require ) {
         }
       }
 
+      if ( !moveKeysStillDown ) {
+        this.clearPointer();
+      }
+
       this.resetPressAndHold();
     },
 
+    /**
+     * Clear the pointer on this listener. Useful for interruption and when dragging stops and we want to detach
+     * the pointer.
+     * @private
+     */
+    clearPointer: function() {
+      assert && assert( this._pointer, 'trying to clear pointer when none is attached' );
+
+      this._pointer.removeInputListener( this._pointerListener );
+      this._pointer.setIntent( null );
+      this._pointer = null;
+    },
 
     /**
      * Step function for the drag handler. JavaScript does not natively handle multiple keydown events at once,
@@ -736,6 +775,11 @@ define( function( require ) {
     interrupt: function() {
       this.keyState = [];
       this.resetPressAndHold();
+
+      // remove the pointer listener so the pointer is no longer attached
+      if ( this._pointer ) {
+        this.clearPointer();
+      }
     },
 
     /**
@@ -745,6 +789,17 @@ define( function( require ) {
       this._disposeKeyboardDragListener();
     }
   }, {
+
+    /**
+     * Returns true if the keycode provided indicates that it would initiate some dragging or movement.
+     * @public
+     *
+     * @param {number} keyCode
+     * @returns {boolean}
+     */
+    isMovementKey: function( keyCode ) {
+      return KeyboardUtil.isArrowKey( keyCode ) ||KeyboardUtil.isWASDKey( keyCode );
+    },
 
     /**
      * Returns true if the keycode corresponds to a key that should move the object to the left.

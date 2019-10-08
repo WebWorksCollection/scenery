@@ -65,7 +65,10 @@ define( function( require ) {
 
   // these elements utilize the arrow keys by default and should prevent global arrow key behavior (such as panning
   // from PanZoomListener).
-  var ELEMENTS_USE_ARROW_KEYS = [ INPUT_TAG, TEXTAREA_TAG, SELECT_TAG ];
+  var ELEMENTS_USE_ARROW_KEYS = [ TEXTAREA_TAG, SELECT_TAG ];
+
+  // these types of input will requre use of arrow keys by default
+  var INPUTS_USE_ARROW_KEYS = [ 'range', 'text', 'radio', 'number', 'search' ];
 
   // valid DOM events that the display adds listeners to. For a list of scenery events that support a11y features
   // see Input.A11Y_EVENT_TYPES
@@ -368,6 +371,24 @@ define( function( require ) {
       }
 
       return domElement.getAttribute( DATA_FOCUSABLE ) === 'true';
+    },
+
+    /**
+     * Returns true if the default behavior for the DOM element would use arrow keys during input. Note that
+     * this function may not be complete, but catches native elements used at the time of its writing. Add
+     * to this function if necessary.
+     * @public
+     *
+     * @param {HTMLElement} domElement
+     * @returns {boolean}
+     */
+    elementUsesArrowKeys: function( domElement ) {
+      if ( domElement.tagName === INPUT_TAG ) {
+        return _.includes( INPUTS_USE_ARROW_KEYS, domElement.type );
+      }
+      else {
+        return _.includes( ELEMENTS_USE_ARROW_KEYS, domElement.tagName );
+      }
     },
 
     /**

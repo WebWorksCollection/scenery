@@ -22,6 +22,7 @@ define( require => {
   const Vector2 = require( 'DOT/Vector2' );
   const PanZoomListener = require( 'SCENERY/listeners/PanZoomListener' );
   const platform = require( 'PHET_CORE/platform' );
+  const Pointer = require( 'SCENERY/input/Pointer' );
 
   // constants
   const MOVE_CURSOR = 'all-scroll';
@@ -73,7 +74,7 @@ define( require => {
       // handle keyboard input - we may want to respond to this input when focus is outside of the PDOM so we
       // respond to a KeyStateTracker, which the client may update anywhere (like in response to events on the
       // document body)
-      keyStateTracker.keydownEmitter.addListener( this.handleKeyEvent.bind( this ) );
+      // keyStateTracker.keydownEmitter.addListener( this.handleKeyEvent.bind( this ) );
 
       // respond to macOS trackpad input
       if ( platform.safari && !platform.mobileSafari ) {
@@ -173,11 +174,9 @@ define( require => {
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
     }
 
-    /**
-     * Respond to a key event, scaling or zooming into a point depending on the command.
-     * @param {DOMEvent} domEvent
-     */
-    handleKeyEvent( domEvent ) {
+    keydown( event ) {
+
+      const domEvent = event.domEvent;
 
       // handle zoom - Safari doesn't receive the keyup event when the meta key is pressed so we cannot use
       // the keyStateTracker to determine if zoom keys are down
@@ -215,20 +214,18 @@ define( require => {
         // for now, we just disable panning with a keyboard if the element uses arrow keys for interaction or
         // the node as ANY keydown/keyup listeners
         const displayFocus = Display.focusProperty.get();
-        let focusHasKeyListeners = false;
+        let keyboardDragIntent = false;
         let elementUsesKeys = false;
 
         if ( displayFocus ) {
-          const focusTrail = displayFocus.trail;
-          const focusNode = focusTrail.lastNode();
 
           // NOTE: this function takes up extra time searching for listeners along the trail - instead of doing this
           // every keydown event, consider updating this flag only when focus changes
-          focusHasKeyListeners = this.hasKeyListeners( focusTrail );
-          elementUsesKeys = _.includes( AccessibilityUtil.ELEMENTS_USE_ARROW_KEYS, focusNode.tagName.toUpperCase() );
+          keyboardDragIntent = event.pointer.getIntent() === Pointer.Intent.KEYBOARD_DRAG;
+          elementUsesKeys = AccessibilityUtil.elementUsesArrowKeys( domEvent.target );
         }
 
-        if ( displayFocus === null || ( !focusHasKeyListeners && !elementUsesKeys ) ) {
+        if ( displayFocus === null || ( !keyboardDragIntent && !elementUsesKeys ) ) {
           sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener handle arrow key down' );
           sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
@@ -239,6 +236,12 @@ define( require => {
         }
       }
     }
+
+    /**
+     * Respond to a key event, scaling or zooming into a point depending on the command.
+     * @param {DOMEvent} domEvent
+     */
+    handleKeyEvent( event ) {}
 
     /**
      * This is just for macOS Safari. Responds to trackpad input. Prevents default browser behavior and sets values

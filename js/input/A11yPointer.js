@@ -34,7 +34,7 @@ define( require => {
       // @private {Node|null} - target of a user event, if focus changes in response to keydown listeners, listeners
       // on keyup are prevented because the key press was not intended for the newly focused node.
       // TODO: Can we do this for more than keydown/keyup? See https://github.com/phetsims/scenery/issues/942
-      this.keydownTargetNode = null; 
+      this.keydownTargetNode = null;
 
       sceneryLog && sceneryLog.Pointer && sceneryLog.Pointer( 'Created ' + this.toString() );
     }
@@ -64,8 +64,11 @@ define( require => {
 
           // set the target to potentially block keyup events
           this.keydownTargetNode = event.target;
+
+          scenery.Display.keyStateTracker.keydownUpdate( event );
         },
         keyup: ( event ) => {
+          scenery.Display.keyStateTracker.keyupUpdate( event );
 
           // The keyup event was received on a node that didn't receive a keydown event, abort to prevent any other
           // listeners from being called for this event. Done after updating KeyStateTracker so that the global state

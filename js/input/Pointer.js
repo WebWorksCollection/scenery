@@ -33,7 +33,7 @@ define( function( require ) {
 
   // constants
   // A Pointer can be assigned an Intent to signify (or prevent) certain behaviors
-  const Intent = new Enumeration( [ 'DRAG', 'MULTI_DRAG' ] );
+  const Intent = new Enumeration( [ 'DRAG', 'MULTI_DRAG', 'KEYBOARD_DRAG' ] );
 
   /**
    * @constructor
