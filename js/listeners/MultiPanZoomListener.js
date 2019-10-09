@@ -71,7 +71,19 @@ define( require => {
       // of cursor movement.
       this.middlePress = null;
 
-      this.dragBounds = null;
+      // @private {Bounds2|null} - these bounds define behavior of panning during interaction with another listener
+      // that declares its intent for dragging. If the pointer is out of these bounds and its intent is for dragging,
+      // we will try to reposition so that the dragged object remains visible
+      this._dragBounds = null;
+
+      // @private {Vector2|null} - The Pointer point during a drag with another listener which declares its intent
+      // for dragging. In the global coordinate frame. We will reposition based on how far this point is out of
+      // this._dragBounds (when defined)
+      this._repositionDuringDragPoint = null;
+
+      // @private - whether or not the Pointer went down within the drag bounds - if it went down out of drag bounds
+      // then user likely trying to pull an object back into view so we prevent panning during drag
+      this._downInDragBounds = false;
 
       // respond to macOS trackpad input
       if ( platform.safari && !platform.mobileSafari ) {
@@ -115,6 +127,10 @@ define( require => {
         this.handleMiddlePress( dt );
       }
 
+      if ( this._repositionDuringDragPoint ) {
+        this.repositionDuringDrag( this._repositionDuringDragPoint );
+      }
+
       this.animateToTargets( dt );
     }
 
@@ -126,9 +142,8 @@ define( require => {
      */
     down( event ) {
       PanZoomListener.prototype.down.call( this, event );
-
       this._downTarget = event.target;
-      this._targetInBoundsOnDown = this.panBounds.containsBounds( this._downTarget.globalBounds );
+      this._downInDragBounds = this._dragBounds.containsPoint( event.pointer.point );
 
       if ( event.pointer.type === 'mouse' ) {
         if ( event.pointer.middleDown ) {
@@ -150,22 +165,42 @@ define( require => {
       }
     }
 
+    /**
+     * Part of the Scenery listener API. Supports repositioning while dragging a more descendant level
+     * Node under this listener. If the node and pointer are out of the dragBounds, we reposition to keep the Node
+     * visible within dragBounds.
+     *
+     * @param {Event} event
+     */
     move( event ) {
-      if ( this.hasDragIntent( event.pointer ) && event.currentTarget !== null ) {
-        if ( this._targetInBoundsOnDown ) {
-          if ( !this.panBounds.containsBounds( this._downTarget.globalBounds ) ) {
+      if ( this._downTarget && this._downInDragBounds ) {
+        const targetInBounds = this.panBounds.containsBounds( this._downTarget.globalBounds );
+        const hasDragIntent = this.hasDragIntent( event.pointer );
+        const currentTargetExists = event.currentTarget !== null;
 
-            // TODO: implement this
-            // this.repositionFromDrag();
-          }
+        if ( currentTargetExists && hasDragIntent && !targetInBounds ) {
+          this._repositionDuringDragPoint = event.pointer.point;
         }
         else {
-
-          // target was out of bounds and user may be dragging it in
-          this._targetInBoundsOnDown = this.panBounds.containsBounds( this._downTarget.globalBounds );
+          this._repositionDuringDragPoint = null;
         }
-
       }
+      else {
+        this._downInDragBounds = this._dragBounds.containsPoint( event.pointer.point );
+      }
+    }
+
+    /**
+     * During a drag of another Node that is a descendant of this listener's targetNode, reposition if the
+     * node is out of dragBounds so that the Node is always within panBounds.
+     * @private
+     *
+     * @param {Vector2} pointerPoint - in the global coordinate frame
+     */
+    repositionDuringDrag( pointerPoint ) {
+      const closestContainedPoint = this._dragBounds.getClosestPoint( pointerPoint.x, pointerPoint.y );
+      const translationDelta = pointerPoint.minus( closestContainedPoint );
+      this.setDestinationLocation( this.sourceLocation.plus( translationDelta ) );
     }
 
     /**
@@ -182,6 +217,8 @@ define( require => {
 
       this._targetInBoundsOnDown = false;
       this._downTarget = null;
+
+      this._repositionDuringDragPoint = null;
     }
 
     /**
@@ -301,7 +338,7 @@ define( require => {
      */
     handleGestureStartEvent( domEvent ) {
 
-      // prevent Safari from doing anything native with this guestre
+      // prevent Safari from doing anything native with this gesture
       domEvent.preventDefault();
       this.trackpadGestureStartScale = domEvent.scale;
       this.scaleGestureTargetLocation = new Vector2( event.pageX, event.pageY );
@@ -559,7 +596,6 @@ define( require => {
     }
 
     /**
-     * Upon setting pan bounds, re-set source and destination locations.
      * @override
      *
      * @param {Bounds2} bounds
@@ -568,7 +604,9 @@ define( require => {
       super.setPanBounds( bounds );
       this.initializeLocations();
 
-      this.dragBounds = bounds.eroded( 25 );
+      // drag bounds eroded a bit so that repositioning during drag occurs as the pointer gets close to the edge.
+      this._dragBounds = bounds.erodedXY( bounds.width * 0.1, bounds.height * 0.1 );
+      assert && assert( this._dragBounds.hasNonzeroArea(), 'drag bounds must have some width and height' );
     }
 
     /**
