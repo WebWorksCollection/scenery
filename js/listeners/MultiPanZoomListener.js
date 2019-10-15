@@ -135,7 +135,7 @@ define( require => {
     }
 
     /**
-     * Attach a MiddlePress for drag panning if detected.
+     * Attach a MiddlePress for drag panning, if detected.
      * @override
      *
      * @param {Event} event
@@ -145,11 +145,24 @@ define( require => {
       this._downTarget = event.target;
       this._downInDragBounds = this._dragBounds.containsPoint( event.pointer.point );
 
-      if ( event.pointer.type === 'mouse' ) {
-        if ( event.pointer.middleDown ) {
-          this.middlePress = new MiddlePress( event.pointer, event.trail );
-          event.pointer.cursor = MOVE_CURSOR;
-        }
+      // begin middle press panning if we aren't already in that state
+      if ( event.pointer.type === 'mouse' && event.pointer.middleDown && !this.middlePress ) {
+        this.middlePress = new MiddlePress( event.pointer, event.trail );
+        event.pointer.cursor = MOVE_CURSOR;
+      }
+      else {
+        this.cancelMiddlePress();
+      }
+    }
+
+    /**
+     * If in a state where we are panning from a middle mouse press, exit that state.
+     * @private
+     */
+    cancelMiddlePress() {
+      if ( this.middlePress ) {
+        this.middlePress.pointer.cursor = null;
+        this.middlePress = null;
       }
     }
 
@@ -207,17 +220,10 @@ define( require => {
      * Scenery listener API. Clear cursor and middlePress.
      *
      * @param {Event} event
-     * @returns {}
      */
     up( event ) {
-      if ( event.pointer.type === 'mouse' ) {
-        event.pointer.cursor = null;
-        this.middlePress = null;
-      }
-
       this._targetInBoundsOnDown = false;
       this._downTarget = null;
-
       this._repositionDuringDragPoint = null;
     }
 
@@ -230,8 +236,12 @@ define( require => {
       sceneryLog && sceneryLog.InputListener && sceneryLog.InputListener( 'MultiListener wheel' );
       sceneryLog && sceneryLog.InputListener && sceneryLog.push();
 
-      const wheel = new Wheel( event );
-      this.repositionFromWheel( wheel, event );
+      // cannot reposition if a dragging with middle mouse button - but wheel zoom should not cancel a middle press
+      // (behavior copied from other browsers)
+      if ( !this.middlePress ) {
+        const wheel = new Wheel( event );
+        this.repositionFromWheel( wheel, event );
+      }
 
       sceneryLog && sceneryLog.InputListener && sceneryLog.pop();
     }
@@ -245,6 +255,10 @@ define( require => {
      * @param {DOMEvent} domEvent
      */
     globalKeydown( domEvent ) {
+
+      // on any keyboard reposition interrupt the middle press panning
+      this.cancelMiddlePress();
+
       const displayAccessible = phet.joist.sim.display._accessible;
       if ( !displayAccessible || !phet.joist.sim.display.accessibleDOMElement.contains( domEvent.target ) ) {
         this.handleZoomCommands( domEvent );
@@ -269,6 +283,9 @@ define( require => {
      */
     keydown( event ) {
       const domEvent = event.domEvent;
+
+      // on any keyboard reposition interrupt the middle press panning
+      this.cancelMiddlePress();
 
       // handle zoom
       this.handleZoomCommands( domEvent );
@@ -474,9 +491,23 @@ define( require => {
     removePress( press ) {
       super.removePress( press );
 
+      // restore the cursor if we have a middle press as we are in a state where moving the mouse will pan
+      if ( this.middlePress ) {
+        press.pointer.cursor = MOVE_CURSOR;
+      }
+
       if ( this._presses.length === 0 ) {
         this.stopInProgressAnimation();
       }
+    }
+
+    /**
+     * Interrupt the listener.
+     * @public
+     */
+    interrupt() {
+      this.cancelMiddlePress();
+      super.interrupt();
     }
 
     hasDragIntent( pointer ) {
